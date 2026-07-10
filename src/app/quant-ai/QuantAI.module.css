@@ -1,0 +1,134 @@
+/* src/app/quant-ai/QuantAI.module.css */
+.page { padding-top: 72px; }
+
+/* ── Hero ── */
+.hero {
+  position: relative; padding: 72px 5% 64px;
+  background: #070707; overflow: hidden;
+}
+.heroBg {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(212,175,55,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(212,175,55,0.03) 1px,transparent 1px);
+  background-size: 48px 48px; pointer-events: none;
+}
+.heroGlow {
+  position: absolute; right: -100px; top: 50%; transform: translateY(-50%);
+  width: 480px; height: 480px;
+  background: radial-gradient(circle,rgba(212,175,55,0.08) 0%,transparent 68%);
+  pointer-events: none;
+}
+.heroInner { position: relative; z-index: 2; max-width: 780px;
+  animation: fadeUp .7s ease forwards; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+.systemPill {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid rgba(212,175,55,.35); padding: 5px 14px 5px 10px; margin-bottom: 28px;
+}
+.pillDot {
+  width: 7px; height: 7px; border-radius: 50%; background: #555; flex-shrink: 0;
+  transition: background .3s;
+}
+.pillDotLive { background: #00D084; animation: blink 1.8s ease-in-out infinite; }
+
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.2; } }
+
+.pillTxt { font-family:'Cinzel',serif; font-size:.65rem; letter-spacing:3px; text-transform:uppercase; color:#D4AF37; }
+
+.heroTitle { font-family:'Cinzel',serif; font-size:clamp(1.8rem,4.5vw,3.4rem); font-weight:900; line-height:1.1; margin-bottom:20px; }
+.goldText  { background:linear-gradient(135deg,#FFD700,#D4AF37,#B8860B); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.heroSub   { font-size:.9rem; color:#B0B0B0; line-height:1.8; max-width:640px; margin-bottom:36px; font-weight:300; }
+.heroMetrics { display:flex; gap:40px; flex-wrap:wrap; }
+.metric { }
+.metricNum { display:block; font-family:'Cinzel',serif; font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#FFD700,#D4AF37); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1; }
+.metricLbl { display:block; font-size:.6rem; letter-spacing:2.5px; text-transform:uppercase; color:#555; margin-top:5px; }
+
+.divider { height:1px; background:linear-gradient(90deg,transparent,rgba(212,175,55,.35),transparent); }
+
+/* ── Live Signal Band ── */
+.liveSignalBand { background:#0D0D0D; border-bottom:1px solid rgba(212,175,55,.15); padding:24px 5%; }
+.liveSignalInner { max-width:900px; }
+
+.liveLabel {
+  display:flex; align-items:center; gap:10px;
+  font-family:'Cinzel',serif; font-size:.65rem; letter-spacing:3px; text-transform:uppercase;
+  color:#D4AF37; margin-bottom:16px; flex-wrap:wrap;
+}
+.liveDot { width:8px; height:8px; border-radius:50%; background:#00D084; animation:blink 1.5s infinite; flex-shrink:0; }
+.liveInstrument { font-size:.85rem; font-weight:700; color:white; }
+.longBadge  { font-size:.6rem; padding:2px 8px; background:rgba(0,208,132,.1);  color:#00D084; border:1px solid rgba(0,208,132,.2);  }
+.shortBadge { font-size:.6rem; padding:2px 8px; background:rgba(255,71,87,.1);   color:#FF4757; border:1px solid rgba(255,71,87,.2);   }
+
+.execLevels { display:flex; flex-direction:column; gap:0; max-width:420px; }
+.execRow {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; font-family:'JetBrains Mono',monospace;
+}
+.tp    { background:rgba(0,208,132,.06);  border-left:3px solid #00D084; }
+.entry { background:rgba(212,175,55,.07); border-left:3px solid #D4AF37; }
+.sl    { background:rgba(255,71,87,.06);  border-left:3px solid #FF4757; }
+
+.execBadge { font-size:.58rem; letter-spacing:2.5px; text-transform:uppercase; font-weight:700; min-width:36px; }
+.tp .execBadge    { color:#00D084; }
+.entry .execBadge { color:#D4AF37; }
+.sl .execBadge    { color:#FF4757; }
+
+.execVal { font-size:.9rem; font-weight:600; }
+.tp .execVal    { color:#00D084; }
+.entry .execVal { color:#FFD700; }
+.sl .execVal    { color:#FF4757; }
+
+.execMeta { font-size:.62rem; color:#555; }
+.signalNotes { font-size:.75rem; color:#888; margin-top:12px; font-style:italic; line-height:1.6; }
+
+/* ── Regime Band ── */
+.regimeBand { background:#111; border-bottom:1px solid rgba(55,138,221,.15); padding:24px 5%; }
+.regimeInner { max-width:560px; }
+
+.regimeHeader { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.regimeLabel { font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:3px; text-transform:uppercase; color:#85B7EB; margin-bottom:4px; }
+.regimeActive { font-family:'Cinzel',serif; font-size:1.2rem; font-weight:700; color:white; }
+.regimeBadge { font-size:.6rem; letter-spacing:2px; text-transform:uppercase; padding:3px 10px; background:rgba(55,138,221,.12); color:#85B7EB; border:1px solid rgba(55,138,221,.3); }
+
+.regimeBars { display:flex; flex-direction:column; gap:10px; }
+.regimeBar { }
+.regimeBarLabels { display:flex; justify-content:space-between; font-size:.7rem; margin-bottom:5px; color:#888; }
+.regimeBarTrack { height:5px; background:#1E1E1E; border-radius:2px; overflow:hidden; }
+.regimeBarFill  { height:100%; border-radius:2px; transition:width .7s ease; }
+
+/* ── Pillars section header ── */
+.pillarsHeader { padding:56px 5% 0; background:#111111; }
+.sectionLabel  { font-family:'Cinzel',serif; font-size:.62rem; letter-spacing:4px; text-transform:uppercase; color:#D4AF37; margin-bottom:10px; }
+.sectionTitle  { font-family:'Cinzel',serif; font-size:clamp(1.6rem,3vw,2.4rem); font-weight:700; line-height:1.2; }
+.goldRule      { width:48px; height:2px; background:linear-gradient(90deg,#B8860B,#FFD700); margin:16px 0 32px; }
+
+/* ── Bottom CTA ── */
+.cta    { padding:88px 5%; text-align:center; background:#070707; }
+.ctaLabel { font-family:'Cinzel',serif; font-size:.65rem; letter-spacing:4px; text-transform:uppercase; color:#D4AF37; margin-bottom:16px; }
+.ctaTitle { font-family:'Cinzel',serif; font-size:clamp(1.8rem,3.5vw,2.8rem); font-weight:900; line-height:1.15; margin-bottom:16px; }
+.ctaSub  { font-size:.87rem; color:#B0B0B0; max-width:520px; margin:0 auto 36px; line-height:1.8; font-weight:300; }
+.ctaBtns { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; }
+.ctaNote { margin-top:16px; font-size:.75rem; color:#555; }
+.ctaNote strong { color:#B0B0B0; }
+
+.btnGold {
+  background:linear-gradient(135deg,#B8860B,#D4AF37,#FFD700); color:#000; border:none;
+  padding:16px 40px; font-family:'Cinzel',serif; font-size:.78rem; font-weight:700;
+  letter-spacing:2.5px; text-transform:uppercase; cursor:pointer; transition:opacity .3s,transform .2s;
+}
+.btnGold:hover  { opacity:.88; transform:translateY(-2px); }
+
+.btnGhost {
+  background:transparent; color:#D4AF37; border:1px solid rgba(212,175,55,.35);
+  padding:15px 40px; font-family:'Cinzel',serif; font-size:.78rem; font-weight:600;
+  letter-spacing:2.5px; text-transform:uppercase; cursor:pointer; transition:background .3s,transform .2s;
+}
+.btnGhost:hover { background:rgba(212,175,55,.08); transform:translateY(-2px); }
+
+@media (max-width:640px) {
+  .heroMetrics { gap:24px; }
+  .liveSignalBand,.regimeBand { padding:20px 4%; }
+}
