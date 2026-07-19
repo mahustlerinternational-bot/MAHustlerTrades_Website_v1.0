@@ -2,8 +2,10 @@
 // src/app/admin/settings/page.tsx
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/utils/authFetch';
+import IntegrationSettingsPanel from '@/components/admin/settings/IntegrationSettingsPanel';
 
-type Tab = 'hero' | 'stats' | 'ib' | 'quant';
+type Tab = 'hero' | 'stats' | 'ib' | 'quant' | 'integrations' | 'assistant';
 
 interface IBStep { title: string; body: string; }
 
@@ -12,9 +14,10 @@ export default function AdminSettingsPage() {
   const [settings,  setSettings]  = useState<Record<string, any>>({});
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
+  const [assistantStatus,setAssistantStatus]=useState<{openai_configured:boolean;model:string;built_in_topics:number}|null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/settings')
+    authFetch('/api/admin/settings')
       .then(r => r.json())
       .then((data: any[]) => {
         const map: Record<string, any> = {};
@@ -24,11 +27,12 @@ export default function AdminSettingsPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+  useEffect(()=>{authFetch('/api/admin/assistant/status').then(r=>r.ok?r.json():null).then(setAssistantStatus).catch(()=>null);},[]);
 
   async function save(key: string, value: unknown) {
     setSaving(true);
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await authFetch('/api/admin/settings', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, value }),
       });
@@ -48,6 +52,8 @@ export default function AdminSettingsPage() {
     { id: 'stats', label: 'Statistics',    icon: '📊' },
     { id: 'ib',    label: 'IB Guide',      icon: '🔗' },
     { id: 'quant', label: 'Quant AI',      icon: '⚡' },
+    { id: 'integrations', label: 'Signal Hub', icon: '📡' },
+    { id: 'assistant', label: 'AI Assistant', icon: '🤖' },
   ];
 
   if (loading) return (
@@ -79,7 +85,7 @@ export default function AdminSettingsPage() {
       </div>
 
       {/* Panel wrapper */}
-      <div style={{ maxWidth:'680px', animation:'fadeUp .5s .14s ease forwards', opacity:0 }}>
+      <div style={{ maxWidth:['integrations','assistant'].includes(activeTab)?'860px':'680px', animation:'fadeUp .5s .14s ease forwards', opacity:0 }}>
 
         {/* ── HERO ── */}
         {activeTab === 'hero' && (() => {
@@ -209,6 +215,17 @@ export default function AdminSettingsPage() {
             </SettingsCard>
           );
         })()}
+        {activeTab === 'integrations' && <IntegrationSettingsPanel />}
+        {activeTab === 'assistant' && (()=>{const d={enabled:true,provider:'built_in',name:'MAHustler Assistant',welcome:'Hi! How can I help with your membership today?',instructions:'Be concise, friendly, and escalate account-specific changes to an administrator.',knowledge_base:'',...(settings['assistant']??{})};return <SettingsCard title="AI Member Support" onSave={()=>save('assistant',d)} saving={saving}>
+          <div style={{padding:'10px 12px',background:'rgba(52,211,153,.06)',border:'1px solid rgba(52,211,153,.2)',fontSize:'.68rem',color:'#34D399'}}>Built-in Local active · {assistantStatus?.built_in_topics??'30+'} curated topics · zero model API calls</div>
+          <label style={{fontSize:'.72rem',color:'#AAA'}}><input type="checkbox" defaultChecked={d.enabled!==false} onChange={e=>{d.enabled=e.target.checked;setSettings(s=>({...s,assistant:{...d}}));}} style={{accentColor:'#D4AF37',marginRight:'8px'}}/>Enable member assistant</label>
+          <Field label="Answer Provider"><select defaultValue={d.provider} onChange={e=>{d.provider=e.target.value;setSettings(s=>({...s,assistant:{...d}}));}} style={{...iStyle,cursor:'pointer'}}><option value="built_in">Built-in Local — Free / No API Calls</option><option value="openai" disabled={!assistantStatus?.openai_configured}>OpenAI API {assistantStatus?.openai_configured?`— ${assistantStatus.model}`:'— key not configured'}</option><option value="anthropic" disabled>Claude API — Future Provider</option><option value="custom" disabled>Custom Model API — Future Provider</option></select></Field>
+          <Field label="Assistant Name"><input defaultValue={d.name} onChange={e=>{d.name=e.target.value;setSettings(s=>({...s,assistant:{...d}}));}} style={iStyle}/></Field>
+          <Field label="Welcome Message"><textarea rows={2} defaultValue={d.welcome} onChange={e=>{d.welcome=e.target.value;setSettings(s=>({...s,assistant:{...d}}));}} style={{...iStyle,resize:'vertical'}}/></Field>
+          <Field label="Admin Knowledge / Answering Instructions"><textarea rows={7} defaultValue={d.instructions} onChange={e=>{d.instructions=e.target.value;setSettings(s=>({...s,assistant:{...d}}));}} placeholder="Add company policies, support hours, common answers, and escalation rules…" style={{...iStyle,resize:'vertical'}}/></Field>
+          <Field label="Custom Local Knowledge (one entry per line: keywords | answer)"><textarea rows={10} defaultValue={d.knowledge_base} onChange={e=>{d.knowledge_base=e.target.value;setSettings(s=>({...s,assistant:{...d}}));}} placeholder={'office hours contact support | Our support hours are…\nnew policy refund | Your curated answer…'} style={{...iStyle,resize:'vertical',fontFamily:'JetBrains Mono,monospace'}}/></Field>
+          <p style={{fontSize:'.63rem',color:'#666',lineHeight:1.6}}>The assistant receives only the signed-in member&apos;s access status and verified-platform flags. It cannot see secrets, tokens, full Discord email addresses, or other members.</p>
+        </SettingsCard>;})()}
       </div>
     </div>
   );

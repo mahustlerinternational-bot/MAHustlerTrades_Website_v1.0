@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   if (!s) return NextResponse.json({ error:'Forbidden' },{ status:403 });
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status');
-  let q = supabaseAdmin.from('ib_registrations').select('*, profile:profiles(full_name,role)').order('submitted_at',{ ascending:false });
+  let q = supabaseAdmin.from('ib_registrations').select('*, profile:profiles!ib_registrations_user_id_fkey(full_name,role)').order('submitted_at',{ ascending:false });
   if (status) q = q.eq('status',status);
   const { data, error } = await q;
   if (error) return NextResponse.json({ error:error.message },{ status:500 });

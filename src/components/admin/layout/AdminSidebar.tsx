@@ -1,28 +1,37 @@
 'use client';
 // src/components/admin/layout/AdminSidebar.tsx
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { useAuthStore } from '@/lib/auth/store';
 
 const NAV = [
   { label: 'Dashboard',       href: '/admin/dashboard',         emoji: '📊' },
   { label: 'Members',         href: '/admin/members',           emoji: '👥' },
+  { label: 'Membership',      href: '/admin/packages',          emoji: '💳' },
   { label: 'Courses',         href: '/admin/courses',           emoji: '📚' },
   { label: 'Coupons',         href: '/admin/coupons',           emoji: '🏷️' },
   { label: 'Events',          href: '/admin/events',            emoji: '📅' },
   { label: 'Quant AI',        href: '/admin/quant',             emoji: '⚡' },
   { label: 'IB Applications', href: '/admin/ib-registrations',  emoji: '🔗' },
+  { label: 'IB Brokers',      href: '/admin/brokers',           emoji: '🏦' },
   { label: 'Site Settings',   href: '/admin/settings',          emoji: '⚙️' },
+  { label: 'AI Support',      href: '/admin/support',           emoji: '🤖' },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const router   = useRouter();
   const { logout, user } = useAuthStore();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleLogout() {
-    await logout();
-    router.push('/');
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      window.location.replace('/portal?tab=login');
+    }
   }
 
   return (
@@ -83,10 +92,10 @@ export default function AdminSidebar() {
           onMouseLeave={e => (e.currentTarget.style.color = '#888')}>
           <span>🌐</span> View Site
         </Link>
-        <button onClick={handleLogout} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', fontSize: '0.75rem', color: '#888', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+        <button onClick={handleLogout} disabled={loggingOut} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', fontSize: '0.75rem', color: '#888', background: 'none', border: 'none', cursor:loggingOut?'wait':'pointer', textAlign: 'left', opacity:loggingOut?.65:1 }}
           onMouseEnter={e => (e.currentTarget.style.color = '#FF4757')}
           onMouseLeave={e => (e.currentTarget.style.color = '#888')}>
-          <span>🚪</span> Sign Out
+          <span>🚪</span> {loggingOut ? 'Signing Out…' : 'Sign Out'}
         </button>
       </div>
     </aside>

@@ -5,6 +5,7 @@ import { toast }      from 'sonner';
 import { format }     from 'date-fns';
 import type { TradeEvent } from '@/types';
 import EventFormModal from '@/components/admin/events/EventFormModal';
+import { authFetch } from '@/lib/utils/authFetch';
 
 const BADGE_COLOR: Record<string, string> = {
   Live: '#34D399', VIP: '#F59E0B', 'In-Person': '#60A5FA', Free: '#D4AF37',
@@ -21,7 +22,7 @@ export default function AdminEventsPage() {
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch('/api/admin/events?limit=50');
+      const res  = await authFetch('/api/admin/events?limit=50');
       const json = await res.json();
       setEvents(Array.isArray(json?.data) ? json.data : []);
       setTotal(json?.total ?? 0);
@@ -34,7 +35,7 @@ export default function AdminEventsPage() {
     .filter(e => e.title.toLowerCase().includes(search.toLowerCase()));
 
   async function togglePublish(ev: TradeEvent) {
-    const res = await fetch(`/api/admin/events/${ev.id}`, {
+    const res = await authFetch(`/api/admin/events/${ev.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_published: !ev.is_published }),
     });
@@ -44,7 +45,7 @@ export default function AdminEventsPage() {
 
   async function deleteEvent(id: string, title: string) {
     if (!confirm(`Delete "${title}"?`)) return;
-    const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/admin/events/${id}`, { method: 'DELETE' });
     if (res.ok) { toast.success('Event deleted'); fetchEvents(); }
     else { const e = await res.json(); toast.error(e.error ?? 'Delete failed'); }
   }

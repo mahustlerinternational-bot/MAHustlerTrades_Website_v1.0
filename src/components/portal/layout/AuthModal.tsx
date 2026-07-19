@@ -6,7 +6,7 @@ import { useForm }        from 'react-hook-form';
 import { zodResolver }    from '@hookform/resolvers/zod';
 import { z }              from 'zod';
 import { toast }          from 'sonner';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase/client';
 import { useAuthStore }   from '@/lib/auth/store';
 
 const loginSchema = z.object({
@@ -24,6 +24,17 @@ type LoginForm    = z.infer<typeof loginSchema>;
 type RegisterForm = z.infer<typeof registerSchema>;
 
 interface Props { defaultTab: 'login' | 'register'; returnTo: string; }
+
+function getErrorMessage(value: unknown, fallback: string) {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (value instanceof Error && value.message) return value.message;
+  if (value && typeof value === 'object') {
+    const candidate = value as { message?: unknown; error?: unknown };
+    if (typeof candidate.message === 'string' && candidate.message.trim()) return candidate.message;
+    if (typeof candidate.error === 'string' && candidate.error.trim()) return candidate.error;
+  }
+  return fallback;
+}
 
 const iS: React.CSSProperties = {
   width:'100%', background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)',
@@ -46,7 +57,6 @@ export default function AuthModal({ defaultTab, returnTo }: Props) {
   async function onLogin(values: LoginForm) {
     setLoading(true);
     try {
-      const supabase = createClientComponentClient();
       const { data, error } = await supabase.auth.signInWithPassword({ email: values.email, password: values.password });
       if (error) {
         if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Load failed')) {
@@ -67,6 +77,8 @@ export default function AuthModal({ defaultTab, returnTo }: Props) {
       setUser(profile as any);
       toast.success('Welcome back!');
       setTimeout(() => { router.refresh(); router.push(safeReturn); }, 150);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Unable to sign in. Please check your connection and try again.'));
     } finally { setLoading(false); }
   }
 
@@ -81,15 +93,14 @@ export default function AuthModal({ defaultTab, returnTo }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: values.email, password: values.password, full_name: values.full_name }),
       });
-      const body = await res.json();
+      const body = await res.json().catch(() => null) as { error?: unknown } | null;
 
       if (!res.ok) {
-        toast.error(body.error ?? 'Failed to create account');
+        toast.error(getErrorMessage(body?.error, 'Failed to create account. Please try again.'));
         return;
       }
 
       // Account + profile now exist server-side. Sign in client-side to set the session.
-      const supabase = createClientComponentClient();
       const { data, error } = await supabase.auth.signInWithPassword({ email: values.email, password: values.password });
       if (error) {
         toast.error('Account created, but automatic sign-in failed. Please sign in manually.');
@@ -102,6 +113,8 @@ export default function AuthModal({ defaultTab, returnTo }: Props) {
         toast.success('Account created! Welcome to MAHustler Trades.');
         setTimeout(() => { router.refresh(); router.push(safeReturn); }, 150);
       }
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Unable to create your account. Please check your connection and try again.'));
     } finally { setLoading(false); }
   }
 

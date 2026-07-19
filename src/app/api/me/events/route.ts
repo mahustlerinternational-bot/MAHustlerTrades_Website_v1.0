@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
   if (price>0) return NextResponse.json({ requires_payment:true, gateway:'ziina', event_id, amount_usd:price, amount_aed:(price*3.6725).toFixed(2) },{ status:202 });
   const { data, error } = await supabaseAdmin.from('event_registrations').insert({ user_id:s.userId, event_id, ticket_type, status:'confirmed', amount_paid:0, registered_at:new Date().toISOString() }).select('*').single();
   if (error) return NextResponse.json({ error:error.message },{ status:500 });
-  try { await supabaseAdmin.rpc('increment_event_count',{ event_id }); } catch {}
+  const { error:countError } = await supabaseAdmin.rpc('increment_event_count',{ p_event_id:event_id });
+  if (countError) console.error('[events] registered_count update failed:', countError.message);
   return NextResponse.json(data,{ status:201 });
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import MemberDetailDrawer from '@/components/admin/members/MemberDetailDrawer';
 import { ensureArray }    from '@/lib/utils/fetchApi';
 import type { Profile }   from '@/types';
+import { authFetch }      from '@/lib/utils/authFetch';
 
 type MemberRow = Profile & { package?: { name: string } | null };
 
@@ -21,25 +22,33 @@ export default function AdminMembersPage() {
   const [total,      setTotal]      = useState(0);
   const [page,       setPage]       = useState(1);
   const [search,     setSearch]     = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [loading,    setLoading]    = useState(true);
+  const [loadError,  setLoadError]  = useState<string | null>(null);
   const [selected,   setSelected]   = useState<string | null>(null);
   const LIMIT = 20;
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const p = new URLSearchParams({ page: String(page), limit: String(LIMIT), ...(search && { search }), ...(roleFilter && { role: roleFilter }) });
-      const res  = await fetch(`/api/admin/members?${p}`);
-      const json = await res.json();
+      const p = new URLSearchParams({ page: String(page), limit: String(LIMIT), ...(debouncedSearch && { search:debouncedSearch }), ...(roleFilter && { role: roleFilter }) });
+      const res  = await authFetch(`/api/admin/members?${p}`);
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error ?? `Unable to load members (${res.status})`);
       setMembers(Array.isArray(json?.data) ? json.data : []);
       setTotal(json?.total ?? 0);
-    } catch { setMembers([]); }
+    } catch (error) {
+      setMembers([]);
+      setTotal(0);
+      setLoadError(error instanceof Error ? error.message : 'Unable to load members.');
+    }
     finally { setLoading(false); }
-  }, [page, search, roleFilter]);
+  }, [page, debouncedSearch, roleFilter]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
-  useEffect(() => { const id = setTimeout(() => { setPage(1); fetchMembers(); }, 400); return () => clearTimeout(id); }, [search]);
+  useEffect(() => { const id = setTimeout(() => { setPage(1); setDebouncedSearch(search); }, 400); return () => clearTimeout(id); }, [search]);
 
   const totalPages = Math.ceil(total / LIMIT);
 
@@ -94,13 +103,23 @@ export default function AdminMembersPage() {
             <span style={{ fontSize:'.78rem', color:'#555' }}>Loading members...</span>
           </div>
         )}
-        {!loading && members.length === 0 && (
+        {!loading && loadError && (
+          <div style={{ padding:'4rem', textAlign:'center' }}>
+            <p style={{ fontSize:'2rem', marginBottom:'10px' }}>⚠️</p>
+            <p style={{ fontSize:'.8rem', color:'#FF8A8A', marginBottom:'16px' }}>{loadError}</p>
+            <div style={{ display:'flex', gap:'10px', justifyContent:'center' }}>
+              <button onClick={fetchMembers} style={{ padding:'8px 16px', background:'rgba(212,175,55,.1)', border:'1px solid rgba(212,175,55,.35)', color:'#D4AF37', cursor:'pointer', fontFamily:'inherit' }}>Retry</button>
+              <a href="/portal?tab=login&returnTo=/admin/members" style={{ padding:'8px 16px', border:'1px solid rgba(255,255,255,.1)', color:'#AAA', textDecoration:'none', fontSize:'.75rem' }}>Sign in again</a>
+            </div>
+          </div>
+        )}
+        {!loading && !loadError && members.length === 0 && (
           <div style={{ padding:'4rem', textAlign:'center' }}>
             <p style={{ fontSize:'2rem', marginBottom:'10px' }}>👥</p>
             <p style={{ fontSize:'.8rem', color:'#555' }}>No members found.</p>
           </div>
         )}
-        {!loading && members.map(m => (
+        {!loading && !loadError && members.map(m => (
           <div key={m.id} className="member-row"
             style={{ display:'grid', gridTemplateColumns:'1fr 120px 120px 80px 110px 60px', gap:'1rem', padding:'.85rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s' }}
             onClick={() => setSelected(m.id)}>
@@ -110,8 +129,8 @@ export default function AdminMembersPage() {
                 {m.full_name?.charAt(0)?.toUpperCase() ?? '?'}
               </div>
               <div style={{ minWidth:0 }}>
-                <p style={{ fontSize:'.8rem', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.full_name ?? '—'}</p>
-                <p style={{ fontSize:'.6rem', color:'#444', fontFamily:'JetBrains Mono,monospace', marginTop:'1px' }}>{m.id.slice(0,10)}…</p>
+                <button type="button" onClick={e=>{e.stopPropagation();setSelected(m.id);}} style={{ display:'block', width:'100%', padding:0, border:0, background:'none', color:'#fff', textAlign:'left', fontFamily:'inherit', fontSize:'.8rem', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>{m.full_name ?? '—'}</button>
+                <p style={{ fontSize:'.6rem', color:'#555', fontFamily:'JetBrains Mono,monospace', marginTop:'1px' }}>{m.member_code}</p>
               </div>
             </div>
             {/* Role */}
@@ -150,7 +169,7 @@ export default function AdminMembersPage() {
       )}
 
       {selected && (
-        <MemberDetailDrawer memberId={selected} onClose={() => setSelected(null)} onUpdated={fetchMembers} />
+        <MemberDetailDrawer key={selected} memberId={selected} onClose={() => setSelected(null)} onUpdated={fetchMembers} />
       )}
     </div>
   );

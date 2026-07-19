@@ -1,33 +1,40 @@
 // src/app/portal/dashboard/page.tsx
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import Link   from 'next/link';
+import Image  from 'next/image';
 import { format } from 'date-fns';
+import SignalHistoryPanel from '@/components/portal/quant/SignalHistoryPanel';
+import type { QuantSignal } from '@/types';
+import SignalEventFeed from '@/components/portal/quant/SignalEventFeed';
+import type { SignalFeedEvent } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
 async function getData(userId: string) {
   try {
-    const [enrollRes, eventRes, profileRes, signalRes] = await Promise.all([
+    const [enrollRes, eventRes, profileRes, signalRes, historyRes, feedRes] = await Promise.all([
       supabaseAdmin.from('enrollments').select('*, course:courses(title,level,logo_url)').eq('user_id', userId).eq('status', 'active').order('enrolled_at', { ascending: false }).limit(4),
       supabaseAdmin.from('event_registrations').select('*, event:events(title,event_date,badge)').eq('user_id', userId).eq('status', 'confirmed').order('registered_at').limit(3),
       supabaseAdmin.from('profiles').select('*, package:packages(name,slug,price)').eq('id', userId).single(),
       supabaseAdmin.from('quant_signals').select('*').eq('status', 'active').order('broadcasted_at', { ascending: false }).limit(1).maybeSingle(),
+      supabaseAdmin.from('quant_signals').select('*').order('broadcasted_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('signal_feed_events').select('*').order('occurred_at',{ascending:false}).limit(30),
     ]);
-    return { enrollments: enrollRes.data ?? [], events: eventRes.data ?? [], profile: profileRes.data, signal: signalRes.data };
-  } catch { return { enrollments: [], events: [], profile: null, signal: null }; }
+    return { enrollments: enrollRes.data ?? [], events: eventRes.data ?? [], profile: profileRes.data, signal: signalRes.data, signalHistory:historyRes.data??[], feedEvents:feedRes.data??[] };
+  } catch { return { enrollments: [], events: [], profile: null, signal: null, signalHistory:[], feedEvents:[] }; }
 }
 
 export default async function PortalDashboard() {
-  let session = null;
-  try { const sb = createSupabaseServerClient(); const { data } = await sb.auth.getSession(); session = data.session; } catch {}
+  let user = null;
+  try { const sb = await createSupabaseServerClient(); const { data } = await sb.auth.getUser(); user = data.user; } catch {}
 
-  if (!session?.user) return (
+  if (!user) return (
     <div style={{ padding:'2rem', fontFamily:'Montserrat,sans-serif', color:'#888' }}>
       Session expired. <Link href="/portal" style={{ color:'#D4AF37' }}>Sign in again</Link>.
     </div>
   );
 
-  const { enrollments, events, profile, signal } = await getData(session.user.id);
+  const { enrollments, events, profile, signal, signalHistory, feedEvents } = await getData(user.id);
 
   const pkg      = (profile as any)?.package;
   const ibStatus = (profile as any)?.ib_status ?? 'none';
@@ -71,9 +78,8 @@ export default async function PortalDashboard() {
             </div>
           </div>
           {ibStatus === 'active' && (
-            <div style={{ padding:'10px 16px', background:'rgba(0,208,132,0.08)', border:'1px solid rgba(0,208,132,0.25)' }}>
-              <p style={{ fontSize:'.58rem', letterSpacing:'2.5px', textTransform:'uppercase', color:'#00D084', fontFamily:'Cinzel,serif', marginBottom:'2px' }}>IB Elite</p>
-              <p style={{ fontSize:'.72rem', color:'#00D084' }}>Access Active ✓</p>
+            <div title="Official MAHustler Elite Member" style={{width:'138px',height:'138px',display:'grid',placeItems:'center',background:'transparent'}}>
+              <Image src="/images/elite-badge-transparent.webp" alt="Official MAHustler Elite Member badge" width={132} height={132} priority style={{width:'132px',height:'132px',objectFit:'contain'}}/>
             </div>
           )}
         </div>
@@ -121,6 +127,9 @@ export default async function PortalDashboard() {
           </div>
         </div>
       )}
+
+      {isPaid && <SignalHistoryPanel signals={signalHistory as QuantSignal[]} />}
+      {isPaid && <SignalEventFeed initialEvents={feedEvents as SignalFeedEvent[]} />}
 
       {/* Free account upgrade banner */}
       {!isPaid && (

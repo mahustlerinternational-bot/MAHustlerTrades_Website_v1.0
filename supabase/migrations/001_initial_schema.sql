@@ -14,15 +14,15 @@ CREATE TYPE user_role       AS ENUM ('admin', 'member', 'ib_member');
 CREATE TYPE ib_status       AS ENUM ('none', 'pending', 'active', 'rejected');
 CREATE TYPE billing_period  AS ENUM ('monthly', 'quarterly', 'annual', 'lifetime');
 CREATE TYPE discount_type   AS ENUM ('percent', 'full', 'fixed');
-CREATE TYPE payment_method  AS ENUM ('stripe', 'coupon', 'admin_grant', 'ib_grant');
+CREATE TYPE payment_method  AS ENUM ('stripe', 'ziina', 'free', 'coupon', 'admin_grant', 'ib_grant');
 CREATE TYPE enroll_status   AS ENUM ('active', 'revoked', 'expired');
 CREATE TYPE event_type      AS ENUM ('webinar', 'live_trading', 'summit', 'review', 'masterclass');
 CREATE TYPE event_badge     AS ENUM ('Live', 'VIP', 'In-Person', 'Free');
 CREATE TYPE ticket_type     AS ENUM ('free', 'standard', 'vip');
 CREATE TYPE reg_status      AS ENUM ('confirmed', 'cancelled', 'waitlist', 'pending_payment');
-CREATE TYPE signal_status   AS ENUM ('active', 'closed_tp', 'closed_sl', 'cancelled');
+CREATE TYPE signal_status   AS ENUM ('active', 'closed_tp', 'closed_sl', 'closed_manual', 'cancelled');
 CREATE TYPE signal_type     AS ENUM ('long', 'short');
-CREATE TYPE signal_source   AS ENUM ('live', 'manual');
+CREATE TYPE signal_source   AS ENUM ('live', 'manual', 'ea');
 CREATE TYPE regime_type     AS ENUM ('Accumulation', 'Trending', 'Distribution', 'Ranging');
 CREATE TYPE ib_review_status AS ENUM ('pending', 'approved', 'rejected');
 
@@ -207,7 +207,12 @@ CREATE TABLE quant_signals (
   broadcasted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   closed_at       TIMESTAMPTZ,
   closed_price    NUMERIC(14,5),
-  created_by      UUID REFERENCES profiles(id)
+  created_by      UUID REFERENCES profiles(id),
+  external_id     TEXT,
+  result_r        NUMERIC(10,4),
+  result_pct      NUMERIC(10,4),
+  delivery_status JSONB NOT NULL DEFAULT '{}',
+  metadata        JSONB NOT NULL DEFAULT '{}'
 );
 
 -- ============================================================

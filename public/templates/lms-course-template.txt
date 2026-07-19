@@ -1,0 +1,19 @@
+# Module 1: Course Foundations
+
+## Lesson 1: Welcome and Learning Objectives
+Introduce the topic, expected outcomes, and any prerequisites here.
+
+VIDEO: https://www.youtube.com/watch?v=YOUR_VIDEO_ID
+
+## Lesson 2: Core Concepts
+Paste the full plain-text lesson here.
+
+You can use paragraphs, numbered steps, and simple headings inside the lesson body.
+
+# Module 2: Practical Application
+
+## Lesson 1: Guided Walkthrough
+Add the walkthrough notes here.
+
+## Lesson 2: Review and Next Steps
+Summarize the module and explain what the member should do next.

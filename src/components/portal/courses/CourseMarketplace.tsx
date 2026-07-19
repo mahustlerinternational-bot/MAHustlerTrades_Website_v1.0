@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { toast }    from 'sonner';
 import type { Course } from '@/types';
+import { authFetch } from '@/lib/utils/authFetch';
 
 const LEVEL_COLOR: Record<string,string> = {
   Beginner:'#34D399', Intermediate:'#60A5FA', Advanced:'#F59E0B', Expert:'#F87171', 'All Levels':'#A78BFA'
 };
 const USD_TO_AED = 3.6725;
 
-export default function CourseMarketplace({ courses }: { courses: Course[] }) {
+export default function CourseMarketplace({ courses,ibApproved=false }: { courses: Course[];ibApproved?:boolean }) {
   const [enrolling,  setEnrolling]  = useState<string|null>(null);
   const [couponCode, setCouponCode] = useState<Record<string,string>>({});
   const [showCoupon, setShowCoupon] = useState<Record<string,boolean>>({});
@@ -18,22 +19,22 @@ export default function CourseMarketplace({ courses }: { courses: Course[] }) {
     setEnrolling(course.id);
     try {
       const code = couponCode[course.id]?.trim().toUpperCase() || undefined;
-      const res  = await fetch('/api/me/courses', {
+      const res  = await authFetch('/api/me/courses', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ course_id:course.id, coupon_code:code }),
       });
       const data = await res.json();
 
       if (res.ok) {
-        toast.success('Enrolled successfully! 🎉');
+        toast.success(data.ib_benefit?'Verified IB benefit applied — course unlocked free! 🎉':'Enrolled successfully! 🎉');
         window.location.reload();
         return;
       }
       if (res.status === 202 && data.requires_payment) {
         toast.loading('Redirecting to Ziina payment...');
-        const zRes = await fetch('/api/payments/ziina', {
+        const zRes = await authFetch('/api/payments/ziina', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ type:'course', id:course.id, amount:data.amount_usd, description:course.title }),
+          body: JSON.stringify({ type:'course', id:course.id, coupon_code:data.coupon_code }),
         });
         const zData = await zRes.json();
         toast.dismiss();
@@ -85,7 +86,7 @@ export default function CourseMarketplace({ courses }: { courses: Course[] }) {
               </div>
 
               {/* Coupon toggle */}
-              <div style={{ marginBottom:'10px' }}>
+              {!ibApproved&&Number(c.price)>0&&<div style={{ marginBottom:'10px' }}>
                 <button type="button" onClick={() => setShowCoupon(s => ({ ...s, [c.id]:!s[c.id] }))}
                   style={{ background:'none', border:'none', cursor:'pointer', fontSize:'.65rem', color:'#555', padding:0, transition:'color .2s' }}
                   onMouseEnter={e => (e.currentTarget.style.color='#D4AF37')}
@@ -99,23 +100,26 @@ export default function CourseMarketplace({ courses }: { courses: Course[] }) {
                     onFocus={e => (e.currentTarget.style.borderColor='rgba(212,175,55,.4)')}
                     onBlur={e  => (e.currentTarget.style.borderColor='rgba(255,255,255,.08)')} />
                 )}
-              </div>
+              </div>}
 
               {/* Price + Enroll */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(255,255,255,.05)', paddingTop:'10px' }}>
                 <div>
-                  {c.price === 0
+                  {ibApproved
+                    ? <><span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#34D399' }}>Free with Verified IB</span>{Number(c.price)>0&&<span style={{ fontSize:'.62rem', color:'#666', display:'block', marginTop:'1px',textDecoration:'line-through' }}>${c.price} standard price</span>}</>
+                    : c.price === 0
                     ? <span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#34D399' }}>Free</span>
                     : <>
                         <span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#D4AF37' }}>${c.price}</span>
                         <span style={{ fontSize:'.62rem', color:'#555', display:'block', marginTop:'1px' }}>AED {(c.price*USD_TO_AED).toFixed(0)} via Ziina</span>
+                        <a href="/portal/ib" style={{fontSize:'.58rem',color:'#34D399',display:'block',marginTop:'3px',textDecoration:'none'}}>Or free with approved IB →</a>
                       </>}
                 </div>
                 <button onClick={() => enroll(c)} disabled={enrolling === c.id}
                   style={{ background:'linear-gradient(135deg,#B8860B,#D4AF37)', color:'#000', border:'none', padding:'9px 16px', fontFamily:'Cinzel,serif', fontSize:'.65rem', fontWeight:700, letterSpacing:'1.5px', textTransform:'uppercase', cursor:'pointer', opacity: enrolling===c.id ? .6 : 1, display:'flex', alignItems:'center', gap:'6px' }}>
                   {enrolling===c.id
                     ? <><div style={{ width:'12px', height:'12px', border:'2px solid #000', borderTopColor:'transparent', borderRadius:'50%', animation:'spin .7s linear infinite' }} />Processing</>
-                    : c.price===0 ? 'Enroll Free' : 'Enroll Now'}
+                    : ibApproved||c.price===0 ? 'Enroll Free' : 'Enroll Now'}
                 </button>
               </div>
             </div>

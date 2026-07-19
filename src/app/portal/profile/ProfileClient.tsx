@@ -5,7 +5,7 @@ import { useForm }               from 'react-hook-form';
 import { zodResolver }           from '@hookform/resolvers/zod';
 import { z }                     from 'zod';
 import { toast }                 from 'sonner';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase }                  from '@/lib/supabase/client';
 import { useAuthStore }          from '@/lib/auth/store';
 import Link                      from 'next/link';
 
@@ -28,7 +28,6 @@ const iS: React.CSSProperties = { width:'100%', background:'#0A0A0A', border:'1p
 const lblS: React.CSSProperties = { display:'block', fontSize:'.6rem', letterSpacing:'2px', textTransform:'uppercase', color:'#666', marginBottom:'6px' };
 
 export default function ProfileClient() {
-  const supabase = createClientComponentClient();
   const { user, setUser } = useAuthStore();
   const [saving,   setSaving]   = useState(false);
   const [uploading,setUploading] = useState(false);
@@ -139,7 +138,7 @@ export default function ProfileClient() {
                 )}
               </div>
               <p style={{ fontSize:'.62rem', color:'#444', marginTop:'8px', fontFamily:'JetBrains Mono,monospace' }}>
-                ID: {user.id.slice(0,16)}…
+                ID: {user.member_code}
               </p>
             </div>
           </div>

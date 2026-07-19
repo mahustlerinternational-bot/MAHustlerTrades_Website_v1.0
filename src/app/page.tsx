@@ -272,7 +272,7 @@ export default function HomePage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: '1.5rem' }}>
           {TESTIMONIALS.map(t => (
             <div key={t.name} style={{ background: '#1E1E1E', border: '1px solid rgba(212,175,55,.2)', padding: '2rem', position: 'relative' }}>
-              <span style={{ fontFamily: 'Cinzel,serif', fontSize: '5rem', color: '#B8860B', position: 'absolute', top: '-10px', left: '15px', lineHeight: 1, opacity: .35 }}>"</span>
+              <span style={{ fontFamily: 'Cinzel,serif', fontSize: '5rem', color: '#B8860B', position: 'absolute', top: '-10px', left: '15px', lineHeight: 1, opacity: .35 }}>&ldquo;</span>
               <div style={{ fontSize: '.85rem', color: '#FFD700', marginBottom: '.75rem' }}>★★★★★</div>
               <p style={{ fontSize: '.85rem', color: '#B0B0B0', lineHeight: 1.8, marginBottom: '1.5rem', paddingTop: '1rem', fontWeight: 300 }}>{t.text}</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem' }}>

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast }   from 'sonner';
 import { format }  from 'date-fns';
 import type { IbRegistration } from '@/types';
+import { authFetch } from '@/lib/utils/authFetch';
 
 type FilterStatus = '' | 'pending' | 'approved' | 'rejected';
 type IBWithProfile = IbRegistration & { profile?: { full_name: string | null; role: string } };
@@ -26,7 +27,7 @@ export default function IBRegistrationsPage() {
     setLoading(true);
     try {
       const url = `/api/admin/ib-registrations${filter ? `?status=${filter}` : ''}`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       const d   = await res.json();
       setRegs(Array.isArray(d) ? d : []);
     } catch { setRegs([]); } finally { setLoading(false); }
@@ -37,12 +38,13 @@ export default function IBRegistrationsPage() {
   async function review(userId: string, status: 'approved' | 'rejected') {
     setSaving(userId + status);
     try {
-      const res = await fetch(`/api/admin/members/${userId}`, {
+      const res = await authFetch(`/api/admin/members/${userId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'review_ib', status, admin_notes: notes[userId] ?? '' }),
       });
-      if (!res.ok) { const e = await res.json(); toast.error(e.error); return; }
-      toast.success(`IB registration ${status}`);
+      const result=await res.json();
+      if (!res.ok) { toast.error(result.error); return; }
+      toast.success(status==='approved'?`IB access approved · all courses are now free · ${result.community?.length??0} community invite(s) prepared`:`IB registration ${status}`);
       fetchRegs();
     } finally { setSaving(null); }
   }

@@ -1,9 +1,11 @@
 'use client';
 // src/app/admin/courses/page.tsx
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import type { Course } from '@/types';
 import CourseFormModal from '@/components/admin/courses/CourseFormModal';
+import { authFetch } from '@/lib/utils/authFetch';
 
 export default function AdminCoursesPage() {
   const [courses,   setCourses]   = useState<Course[]>([]);
@@ -16,7 +18,7 @@ export default function AdminCoursesPage() {
   const fetchCourses = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch('/api/admin/courses?limit=50');
+      const res  = await authFetch('/api/admin/courses?limit=50');
       const json = await res.json();
       setCourses(Array.isArray(json?.data) ? json.data : []);
       setTotal(json?.total ?? 0);
@@ -30,13 +32,13 @@ export default function AdminCoursesPage() {
   );
 
   async function togglePublish(c: Course) {
-    const res = await fetch(`/api/admin/courses/${c.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ is_published: !c.is_published }) });
+    const res = await authFetch(`/api/admin/courses/${c.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ is_published: !c.is_published }) });
     if (res.ok) { toast.success(c.is_published ? 'Unpublished' : 'Published'); fetchCourses(); } else toast.error('Update failed');
   }
 
   async function deleteCourse(id: string, title: string) {
     if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/admin/courses/${id}`, { method:'DELETE' });
+    const res = await authFetch(`/api/admin/courses/${id}`, { method:'DELETE' });
     if (res.ok) { toast.success('Course deleted'); fetchCourses(); }
     else { const e = await res.json(); toast.error(e.error ?? 'Delete failed'); }
   }
@@ -78,8 +80,8 @@ export default function AdminCoursesPage() {
 
       {/* Table */}
       <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.06)', animation:'fadeUp .5s .15s ease forwards', opacity:0 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 90px 100px 80px 90px', gap:'1rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
-          {['Course','Level / Market','Price','Status','Actions',''].map(h => (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 90px 100px 150px', gap:'1rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
+          {['Course','Level / Market','Price','Status','Actions'].map(h => (
             <p key={h} style={{ fontSize:'.58rem', letterSpacing:'2.5px', textTransform:'uppercase', color:'#444' }}>{h}</p>
           ))}
         </div>
@@ -97,7 +99,7 @@ export default function AdminCoursesPage() {
         )}
         {!loading && filtered.map(c => (
           <div key={c.id} className="course-row"
-            style={{ display:'grid', gridTemplateColumns:'1fr 140px 90px 100px 80px 90px', gap:'1rem', padding:'.9rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s' }}>
+            style={{ display:'grid', gridTemplateColumns:'1fr 140px 90px 100px 150px', gap:'1rem', padding:'.9rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s' }}>
             {/* Course info */}
             <div style={{ display:'flex', alignItems:'center', gap:'12px', minWidth:0 }}>
               <div style={{ width:'42px', height:'42px', background:'linear-gradient(135deg,#0D0D0D,#1A1500)', border:'1px solid rgba(212,175,55,.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.25rem', flexShrink:0, overflow:'hidden' }}>
@@ -122,6 +124,7 @@ export default function AdminCoursesPage() {
             </div>
             {/* Actions */}
             <div style={{ display:'flex', gap:'6px' }}>
+              <Link href={`/admin/courses/${c.id}/lms`} title="Open LMS Builder" style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'4px',height:'28px',padding:'0 8px',background:'rgba(212,175,55,.1)',border:'1px solid rgba(212,175,55,.22)',color:'#D4AF37',textDecoration:'none',fontSize:'.58rem',fontWeight:700}}>LMS</Link>
               <button className="act-btn" onClick={() => { setEditing(c); setShowModal(true); }}
                 title="Edit" style={{ background:'none', border:'1px solid transparent', color:'#888', width:'28px', height:'28px', cursor:'pointer', fontSize:'13px', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='rgba(212,175,55,.3)'; (e.currentTarget as HTMLButtonElement).style.color='#D4AF37'; }}
@@ -135,7 +138,6 @@ export default function AdminCoursesPage() {
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='rgba(255,71,87,.3)'; (e.currentTarget as HTMLButtonElement).style.color='#FF4757'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor='transparent'; (e.currentTarget as HTMLButtonElement).style.color='#888'; }}>🗑️</button>
             </div>
-            <div />
           </div>
         ))}
       </div>

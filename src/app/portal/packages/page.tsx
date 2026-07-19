@@ -6,20 +6,22 @@ export const dynamic = 'force-dynamic';
 
 async function getData(userId: string) {
   try {
-    const [pkgRes, profileRes] = await Promise.all([
+    const [pkgRes, profileRes, linksRes] = await Promise.all([
       supabaseAdmin.from('packages').select('*, features:package_features(*)').eq('is_active', true).order('sort_order'),
       supabaseAdmin.from('profiles').select('package_id').eq('id', userId).single(),
+      supabaseAdmin.from('site_settings').select('value').eq('key','membership_payment_links').maybeSingle(),
     ]);
-    return { packages: pkgRes.data ?? [], currentPackageId: profileRes.data?.package_id ?? null };
+    const links = linksRes.data?.value && typeof linksRes.data.value==='object' && !Array.isArray(linksRes.data.value) ? linksRes.data.value as Record<string,string> : {};
+    return { packages: (pkgRes.data ?? []).map(pkg=>({...pkg,payment_url:links[pkg.id]??''})), currentPackageId: profileRes.data?.package_id ?? null };
   } catch { return { packages: [], currentPackageId: null }; }
 }
 
 export default async function PackagesPage() {
-  let session = null;
-  try { const sb = createSupabaseServerClient(); const { data } = await sb.auth.getSession(); session = data.session; } catch {}
-  if (!session?.user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
+  let user = null;
+  try { const sb = await createSupabaseServerClient(); const { data } = await sb.auth.getUser(); user = data.user; } catch {}
+  if (!user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
 
-  const { packages, currentPackageId } = await getData(session.user.id);
+  const { packages, currentPackageId } = await getData(user.id);
 
   return (
     <div style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>

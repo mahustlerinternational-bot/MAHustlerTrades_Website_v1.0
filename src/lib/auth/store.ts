@@ -4,6 +4,7 @@ import { create } from 'zustand';
 
 interface Profile {
   id:             string;
+  member_code:    string;
   full_name:      string | null;
   avatar_url:     string | null;
   role:           string;
@@ -37,9 +38,24 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: async () => {
     try {
-      const { createClientComponentClient } = await import('@supabase/auth-helpers-nextjs');
-      const supabase = createClientComponentClient();
-      await supabase.auth.signOut();
+      const { supabase } = await import('@/lib/supabase/client');
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      if (error) await supabase.auth.signOut({ scope: 'local' });
+
+      // Remove sessions created by the pre-SSR client as well as any stale
+      // cookie chunks. This prevents Back/forward cache from reviving admin UI.
+      if (typeof window !== 'undefined') {
+        for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+          const key = window.localStorage.key(i);
+          if (key?.startsWith('sb-') && key.endsWith('-auth-token')) window.localStorage.removeItem(key);
+        }
+        document.cookie.split(';').forEach((entry) => {
+          const name = entry.split('=')[0]?.trim();
+          if (name && /^sb-.+-auth-token(?:\.\d+)?$/.test(name)) {
+            document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
+          }
+        });
+      }
     } catch (e) {
       console.warn('Logout error:', e);
     }
@@ -54,10 +70,12 @@ export function useAuthInit() {
   const init = async () => {
     setLoading(true);
     try {
-      const { createClientComponentClient } = await import('@supabase/auth-helpers-nextjs');
-      const supabase = createClientComponentClient();
+      const [{ supabase }, { getBrowserSession }] = await Promise.all([
+        import('@/lib/supabase/client'),
+        import('@/lib/utils/authFetch'),
+      ]);
 
-      const { data: { session }, error: sessErr } = await supabase.auth.getSession();
+      const { data: { session }, error: sessErr } = await getBrowserSession();
       if (sessErr || !session?.user) {
         setUser(null);
         return;

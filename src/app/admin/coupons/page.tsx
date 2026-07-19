@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Coupon } from '@/types';
+import { authFetch } from '@/lib/utils/authFetch';
 
 const schema = z.object({
   code:           z.string().min(3),
@@ -43,8 +44,8 @@ export default function AdminCouponsPage() {
     setLoading(true);
     try {
       const [cRes, coRes] = await Promise.all([
-        fetch('/api/admin/coupons'),
-        fetch('/api/admin/courses?limit=100'),
+        authFetch('/api/admin/coupons'),
+        authFetch('/api/admin/courses?limit=100'),
       ]);
       const cData  = await cRes.json();
       const coData = await coRes.json();
@@ -61,7 +62,7 @@ export default function AdminCouponsPage() {
   );
 
   async function toggleActive(c: Coupon) {
-    await fetch(`/api/admin/coupons/${c.id}`, {
+    await authFetch(`/api/admin/coupons/${c.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: !c.is_active }),
     });
@@ -71,7 +72,7 @@ export default function AdminCouponsPage() {
 
   async function deleteCoupon(id: string, code: string) {
     if (!confirm(`Delete coupon "${code}"?`)) return;
-    await fetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
+    await authFetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
     toast.success('Coupon deleted');
     fetchAll();
   }
@@ -211,7 +212,7 @@ function CouponModal({ coupon, courses, onClose, onSaved }: {
       const payload = { ...values, course_id: values.course_id || null, expires_at: values.expires_at || null };
       const url    = isEdit ? `/api/admin/coupons/${coupon!.id}` : '/api/admin/coupons';
       const method = isEdit ? 'PATCH' : 'POST';
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json(); toast.error(e.error ?? 'Save failed'); return; }
       toast.success(isEdit ? 'Coupon updated' : 'Coupon created');
       onSaved();

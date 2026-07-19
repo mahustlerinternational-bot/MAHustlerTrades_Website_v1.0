@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Course } from '@/types';
+import { authFetch } from '@/lib/utils/authFetch';
 
 const schema = z.object({
   title:           z.string().min(3, 'Title must be at least 3 characters'),
@@ -32,7 +32,6 @@ const LEVELS  = ['Beginner', 'Intermediate', 'Advanced', 'Expert', 'All Levels']
 const MARKETS = ['Forex', 'Crypto', 'Indices', 'Options', 'Stocks', 'Multi-Market', 'Mindset'];
 
 export default function CourseFormModal({ course, onClose, onSaved }: Props) {
-  const supabase = createClientComponentClient();
   const isEdit   = !!course;
   const [saving,        setSaving]        = useState(false);
   const [logoUrl,       setLogoUrl]       = useState(course?.logo_url        ?? '');
@@ -57,17 +56,18 @@ export default function CourseFormModal({ course, onClose, onSaved }: Props) {
 
   async function uploadImage(
     file: File,
-    bucket: string,
+    assetType: 'course-logo' | 'course-cover',
     setter: (url: string) => void,
     setUploading: (v: boolean) => void
   ) {
     setUploading(true);
     try {
-      const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
-      const path = `courses/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) { toast.error('Upload failed: ' + upErr.message); return; }
-      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      const form = new FormData();
+      form.append('file', file);
+      form.append('assetType', assetType);
+      const response = await authFetch('/api/admin/uploads', { method: 'POST', body: form });
+      const data = await response.json();
+      if (!response.ok) { toast.error(data.error ?? 'Upload failed'); return; }
       setter(data.publicUrl);
       toast.success('Image uploaded');
     } catch (e) {
@@ -84,7 +84,7 @@ export default function CourseFormModal({ course, onClose, onSaved }: Props) {
       const url     = isEdit ? `/api/admin/courses/${course!.id}` : '/api/admin/courses';
       const method  = isEdit ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -141,7 +141,7 @@ export default function CourseFormModal({ course, onClose, onSaved }: Props) {
                   )}
                 </div>
                 <input type="file" accept="image/*" style={{ display:'none' }}
-                  onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'course-assets', setLogoUrl, setUploadingLogo)} />
+                  onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'course-logo', setLogoUrl, setUploadingLogo)} />
               </label>
               {logoUrl && <button type="button" onClick={() => setLogoUrl('')} style={{ fontSize:'.6rem', color:'#FF4757', background:'none', border:'none', cursor:'pointer', marginTop:'3px' }}>✕ Remove</button>}
             </div>
@@ -164,7 +164,7 @@ export default function CourseFormModal({ course, onClose, onSaved }: Props) {
                   )}
                 </div>
                 <input type="file" accept="image/*" style={{ display:'none' }}
-                  onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'course-assets', setCoverUrl, setUploadingCover)} />
+                  onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'course-cover', setCoverUrl, setUploadingCover)} />
               </label>
               {coverUrl && <button type="button" onClick={() => setCoverUrl('')} style={{ fontSize:'.6rem', color:'#FF4757', background:'none', border:'none', cursor:'pointer', marginTop:'3px' }}>✕ Remove</button>}
             </div>

@@ -12,6 +12,8 @@ export const dynamic = 'force-dynamic';
 const REQUIRED_BUCKETS = [
   { id: 'avatars',       public: true, fileSizeLimit: 5  * 1024 * 1024 }, // 5MB
   { id: 'course-assets', public: true, fileSizeLimit: 10 * 1024 * 1024 }, // 10MB
+  { id: 'support-attachments', public: false, fileSizeLimit: 10 * 1024 * 1024 }, // 10MB, signed links only
+  { id: 'course-media', public: false, fileSizeLimit: 50 * 1024 * 1024 }, // Supabase default project cap
 ];
 
 export async function POST(req: NextRequest) {

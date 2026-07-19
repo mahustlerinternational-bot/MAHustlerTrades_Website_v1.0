@@ -8,15 +8,15 @@ export type UserRole        = 'admin' | 'member' | 'ib_member';
 export type IbStatus        = 'none' | 'pending' | 'active' | 'rejected';
 export type BillingPeriod   = 'monthly' | 'quarterly' | 'annual' | 'lifetime';
 export type DiscountType    = 'percent' | 'full' | 'fixed';
-export type PaymentMethod   = 'stripe' | 'coupon' | 'admin_grant' | 'ib_grant';
+export type PaymentMethod   = 'stripe' | 'ziina' | 'free' | 'coupon' | 'admin_grant' | 'ib_grant';
 export type EnrollStatus    = 'active' | 'revoked' | 'expired';
 export type EventType       = 'webinar' | 'live_trading' | 'summit' | 'review' | 'masterclass';
 export type EventBadge      = 'Live' | 'VIP' | 'In-Person' | 'Free';
 export type TicketType      = 'free' | 'standard' | 'vip';
 export type RegStatus       = 'confirmed' | 'cancelled' | 'waitlist' | 'pending_payment';
-export type SignalStatus    = 'active' | 'closed_tp' | 'closed_sl' | 'cancelled';
+export type SignalStatus    = 'active' | 'closed_tp' | 'closed_sl' | 'closed_manual' | 'cancelled';
 export type SignalType      = 'long' | 'short';
-export type SignalSource    = 'live' | 'manual';
+export type SignalSource    = 'live' | 'manual' | 'ea';
 export type RegimeType      = 'Accumulation' | 'Trending' | 'Distribution' | 'Ranging';
 export type IbReviewStatus  = 'pending' | 'approved' | 'rejected';
 
@@ -24,6 +24,7 @@ export type IbReviewStatus  = 'pending' | 'approved' | 'rejected';
 
 export interface Profile {
   id:                 string;
+  member_code:        string;
   full_name:          string | null;
   avatar_url:         string | null;
   role:               UserRole;
@@ -167,6 +168,11 @@ export interface QuantSignal {
   closed_at:       string | null;
   closed_price:    number | null;
   created_by:      string | null;
+  external_id:     string | null;
+  result_r:        number | null;
+  result_pct:      number | null;
+  delivery_status: Record<string, unknown>;
+  metadata:        Record<string, unknown>;
 }
 
 export interface QuantRegime {
@@ -179,6 +185,15 @@ export interface QuantRegime {
   active_regime:    RegimeType;
   source:           SignalSource;
   created_by:       string | null;
+}
+
+export type FeedEventCategory='signal'|'trade_update'|'performance'|'risk'|'regime'|'system'|'alert';
+export type FeedEventSeverity='info'|'success'|'warning'|'critical';
+export interface SignalFeedEvent{
+  id:string;source:string;external_id:string;category:FeedEventCategory;severity:FeedEventSeverity;
+  title:string;body:string;metrics:Record<string,unknown>;raw_payload:Record<string,unknown>;
+  telegram_chat_id:string|null;telegram_message_id:number|null;occurred_at:string;
+  delivery_status:Record<string,unknown>;created_at:string;updated_at:string;
 }
 
 export interface IbRegistration {

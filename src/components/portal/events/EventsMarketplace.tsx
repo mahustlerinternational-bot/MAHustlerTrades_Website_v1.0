@@ -5,6 +5,7 @@ import { format }              from 'date-fns';
 import { Calendar, MapPin, Globe, Users, Loader2, X, Ticket } from 'lucide-react';
 import { toast }               from 'sonner';
 import type { TradeEvent }     from '@/types';
+import { authFetch }           from '@/lib/utils/authFetch';
 
 interface Props { events: TradeEvent[]; }
 
@@ -123,7 +124,7 @@ function RegisterModal({ event, onClose }: { event: TradeEvent; onClose: () => v
   async function handleRegister() {
     setLoading(true);
     try {
-      const res = await fetch('/api/me/events', {
+      const res = await authFetch('/api/me/events', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
@@ -134,8 +135,18 @@ function RegisterModal({ event, onClose }: { event: TradeEvent; onClose: () => v
       const data = await res.json();
 
       if (data.requires_payment) {
-        toast.info('Redirecting to secure payment...');
-        // In production: window.location.href = await createEventCheckout(event.id, ticketType)
+        toast.loading('Redirecting to secure Ziina payment...');
+        const paymentResponse = await authFetch('/api/payments/ziina', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ type:'event', id:event.id, ticket_type:ticketType }),
+        });
+        const payment = await paymentResponse.json();
+        toast.dismiss();
+        if (!paymentResponse.ok || !payment.checkout_url) {
+          toast.error(payment.error ?? payment.message ?? 'Unable to start payment');
+          return;
+        }
+        window.location.href = payment.checkout_url;
         return;
       }
       if (!res.ok) { toast.error(data.error ?? 'Registration failed'); return; }

@@ -2,7 +2,7 @@
 // src/lib/hooks/useQuantRealtime.ts
 import { useEffect } from 'react';
 import { create }    from 'zustand';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase/client';
 import type { QuantSignal, QuantRegime, QuantState } from '@/types';
 
 // ── Zustand store ─────────────────────────────────────────────
@@ -25,8 +25,6 @@ export function useQuantRealtime() {
       setConnected(false);
       return;
     }
-    const supabase = createClientComponentClient();
-
     async function loadInitial() {
       const [sigRes, regRes] = await Promise.all([
         supabase

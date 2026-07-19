@@ -44,9 +44,11 @@ export async function POST(req: NextRequest) {
 
   // 2. Explicitly create the matching profiles row. If one already exists
   //    (e.g. the trigger fired for a previous attempt), this is a no-op.
-  const { error: profileErr } = await supabaseAdmin
+  const { data:profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
-    .upsert({ id: userId, full_name, role: 'member' }, { onConflict: 'id' });
+    .upsert({ id: userId, full_name, role: 'member' }, { onConflict: 'id' })
+    .select('member_code')
+    .single();
 
   if (profileErr) {
     // Roll back the auth user so we don't leave an orphaned account with no profile.
@@ -54,5 +56,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to set up account profile: ' + profileErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, user_id: userId });
+  return NextResponse.json({ success: true, user_id: userId, member_id:profile.member_code });
 }

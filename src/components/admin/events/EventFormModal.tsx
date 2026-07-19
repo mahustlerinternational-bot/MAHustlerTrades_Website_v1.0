@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import type { TradeEvent } from '@/types';
+import { authFetch } from '@/lib/utils/authFetch';
 
 const schema = z.object({
   title:            z.string().min(3),
@@ -75,7 +76,7 @@ export default function EventFormModal({ event, onClose, onSaved }: Props) {
       const url    = isEdit ? `/api/admin/events/${event!.id}` : '/api/admin/events';
       const method = isEdit ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

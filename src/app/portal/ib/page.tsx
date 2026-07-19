@@ -1,17 +1,28 @@
 // src/app/portal/ib/page.tsx
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
 import IBRegistrationWizard from '@/components/portal/ib/IBRegistrationWizard';
+import { loadIntegrationSettings } from '@/lib/integrations/settings';
+import { provisionCommunityInvites } from '@/lib/community/invites';
 
 export const dynamic = 'force-dynamic';
 
 async function getData(userId: string) {
   try {
-    const [settingsRes, ibRes] = await Promise.all([
+    const [settingsRes, brokersRes, ibRes, inviteRes,accountsRes,integrationSettings] = await Promise.all([
       supabaseAdmin.from('site_settings').select('value').eq('key', 'ib_guide').maybeSingle(),
+      supabaseAdmin.from('site_settings').select('value').eq('key', 'ib_brokers').maybeSingle(),
       supabaseAdmin.from('ib_registrations').select('*').eq('user_id', userId).maybeSingle(),
+      supabaseAdmin.from('community_invites').select('platform,invite_url,expires_at,status').eq('user_id',userId).eq('status','active'),
+      supabaseAdmin.from('member_community_accounts').select('platform,username,display_name,email_masked,email_matches_account,verified_at').eq('user_id',userId),
+      loadIntegrationSettings(),
     ]);
-    return { guide: settingsRes.data?.value ?? {}, existing: ibRes.data ?? null };
-  } catch { return { guide: {}, existing: null }; }
+    let communityInvites=inviteRes.data??[];
+    const expired=communityInvites.some(invite=>invite.expires_at&&new Date(invite.expires_at).getTime()<=Date.now());
+    const missingTelegram=integrationSettings.telegram.enabled&&!communityInvites.some(invite=>invite.platform==='telegram');
+    const missingDiscord=integrationSettings.discord.enabled&&!communityInvites.some(invite=>invite.platform==='discord');
+    if(ibRes.data?.status==='approved'&&(expired||communityInvites.length===0||missingTelegram||missingDiscord))communityInvites=await provisionCommunityInvites(userId);
+    return { guide: settingsRes.data?.value ?? {}, brokers: brokersRes.data?.value ?? [], existing: ibRes.data ?? null, communityInvites,communityAccounts:accountsRes.data??[],linking:{telegram:Boolean(integrationSettings.telegram.enabled&&integrationSettings.telegram.bot_token&&integrationSettings.telegram.inbound_enabled),discord:Boolean(integrationSettings.discord.oauth_enabled&&integrationSettings.discord.client_id&&integrationSettings.discord.client_secret)} };
+  } catch { return { guide: {}, brokers: [], existing: null, communityInvites:[],communityAccounts:[],linking:{telegram:false,discord:false} }; }
 }
 
 const DEFAULT_GUIDE = {
@@ -26,11 +37,11 @@ const DEFAULT_GUIDE = {
 };
 
 export default async function IBPortalPage() {
-  let session = null;
-  try { const sb = createSupabaseServerClient(); const { data } = await sb.auth.getSession(); session = data.session; } catch {}
-  if (!session?.user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
+  let user = null;
+  try { const sb = await createSupabaseServerClient(); const { data } = await sb.auth.getUser(); user = data.user; } catch {}
+  if (!user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
 
-  const { guide, existing } = await getData(session.user.id);
+  const { guide, brokers, existing, communityInvites,communityAccounts,linking } = await getData(user.id);
   const mergedGuide = { ...DEFAULT_GUIDE, ...(guide as object) };
 
   return (
@@ -47,7 +58,7 @@ export default async function IBPortalPage() {
 
       <div style={{ maxWidth:'640px', animation:'fadeUp .5s .1s ease forwards', opacity:0 }}>
         <div style={{ background:'#111', border:'1px solid rgba(212,175,55,.2)', padding:'2rem' }}>
-          <IBRegistrationWizard guide={mergedGuide as any} existing={existing as any} />
+          <IBRegistrationWizard guide={mergedGuide as any} brokers={Array.isArray(brokers) ? brokers as any : []} existing={existing as any} communityInvites={communityInvites as any} communityAccounts={communityAccounts as any} linking={linking} />
         </div>
       </div>
     </div>

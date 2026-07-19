@@ -7,27 +7,29 @@ export const dynamic = 'force-dynamic';
 
 async function getData(userId: string) {
   try {
-    const [enrollRes, allCoursesRes] = await Promise.all([
+    const [enrollRes, allCoursesRes,profileRes] = await Promise.all([
       supabaseAdmin
         .from('enrollments').select('*, course:courses(*)')
         .eq('user_id', userId).eq('status', 'active')
         .order('enrolled_at', { ascending: false }),
       supabaseAdmin.from('courses').select('*').eq('is_published', true).order('sort_order'),
+      supabaseAdmin.from('profiles').select('ib_status').eq('id',userId).single(),
     ]);
     const enrolledIds = new Set((enrollRes.data ?? []).map((e: any) => e.course_id));
     return {
       enrolled:  enrollRes.data ?? [],
       available: (allCoursesRes.data ?? []).filter((c: any) => !enrolledIds.has(c.id)),
+      ibApproved:profileRes.data?.ib_status==='active',
     };
-  } catch { return { enrolled: [], available: [] }; }
+  } catch { return { enrolled: [], available: [], ibApproved:false }; }
 }
 
 export default async function MyCourses() {
-  let session = null;
-  try { const sb = createSupabaseServerClient(); const { data } = await sb.auth.getSession(); session = data.session; } catch {}
-  if (!session?.user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
+  let user = null;
+  try { const sb = await createSupabaseServerClient(); const { data } = await sb.auth.getUser(); user = data.user; } catch {}
+  if (!user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
 
-  const { enrolled, available } = await getData(session.user.id);
+  const { enrolled, available, ibApproved } = await getData(user.id);
 
   return (
     <div style={{ padding: '2.5rem', minHeight: '100vh', background: '#0A0A0A', fontFamily: 'Montserrat,sans-serif', color: '#fff' }}>
@@ -41,6 +43,8 @@ export default async function MyCourses() {
           {enrolled.length > 0 ? `${enrolled.length} course${enrolled.length !== 1 ? 's' : ''} enrolled` : 'No courses enrolled yet'}
         </p>
       </div>
+
+      {ibApproved&&<div style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 16px',marginBottom:'2rem',background:'rgba(52,211,153,.07)',border:'1px solid rgba(52,211,153,.22)',color:'#D1FAE5'}}><span style={{fontSize:'1.2rem'}}>✓</span><div><strong style={{fontFamily:'Cinzel,serif',fontSize:'.72rem',color:'#34D399'}}>VERIFIED IB COURSE BENEFIT</strong><p style={{fontSize:'.68rem',color:'#7EAA99',marginTop:'3px'}}>Your approved IB account gives you free enrollment in every available course.</p></div></div>}
 
       {/* Enrolled */}
       {enrolled.length > 0 ? (
@@ -70,7 +74,7 @@ export default async function MyCourses() {
             <div style={{ flex:1, height:'1px', background:'rgba(255,255,255,.04)' }} />
             <p style={{ fontSize:'.65rem', color:'#555' }}>{available.length} course{available.length !== 1 ? 's' : ''} available</p>
           </div>
-          <CourseMarketplace courses={available as any} />
+          <CourseMarketplace courses={available as any} ibApproved={ibApproved} />
         </div>
       )}
     </div>

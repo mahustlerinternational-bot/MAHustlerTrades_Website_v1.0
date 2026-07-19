@@ -7,6 +7,7 @@ import { z }                   from 'zod';
 import { toast }               from 'sonner';
 import { useQuantRealtime, useQuantStore, formatPrice } from '@/lib/hooks/useQuantRealtime';
 import type { QuantSignal }    from '@/types';
+import { authFetch }           from '@/lib/utils/authFetch';
 
 const signalSchema = z.object({
   instrument:     z.string().min(2),
@@ -47,20 +48,20 @@ export default function AdminQuantPage() {
   const total     = Object.values(regValues).reduce((a, b) => Number(a) + Number(b), 0);
 
   useEffect(() => {
-    fetch('/api/admin/quant/signals?status=all&limit=20')
+    authFetch('/api/admin/quant/signals?status=all&limit=20')
       .then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : []))
       .catch(() => setHistory([])).finally(() => setLoadingH(false));
   }, []);
 
   async function refreshHistory() {
-    const d = await fetch('/api/admin/quant/signals?status=all&limit=20').then(r => r.json()).catch(() => []);
+    const d = await authFetch('/api/admin/quant/signals?status=all&limit=20').then(r => r.json()).catch(() => []);
     setHistory(Array.isArray(d) ? d : []);
   }
 
   async function onPushSignal(v: SigForm) {
     setSavingSig(true);
     try {
-      const res = await fetch('/api/admin/quant/signals', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(v) });
+      const res = await authFetch('/api/admin/quant/signals', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(v) });
       if (!res.ok) { const e = await res.json(); toast.error(e.error); return; }
       toast.success('Signal pushed — broadcasting to all members via Realtime');
       sigForm.reset({ signal_type:'long', instrument:'XAUUSD' });
@@ -72,15 +73,17 @@ export default function AdminQuantPage() {
     if (Math.abs(total - 100) > 5) { toast.error('Percentages must sum to ~100'); return; }
     setSavingReg(true);
     try {
-      const res = await fetch('/api/admin/quant/regime', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(v) });
+      const res = await authFetch('/api/admin/quant/regime', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(v) });
       if (!res.ok) { const e = await res.json(); toast.error(e.error); return; }
       toast.success('Regime updated — broadcasting live');
     } finally { setSavingReg(false); }
   }
 
-  async function closeSignal(id: string) {
-    const res = await fetch(`/api/admin/quant/signals/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'cancelled' }) });
-    if (res.ok) { toast.success('Signal cancelled'); refreshHistory(); }
+  async function closeSignal(id: string,status:'closed_tp'|'closed_sl'|'cancelled') {
+    const res = await authFetch(`/api/admin/quant/signals/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+    const data=await res.json().catch(()=>null);
+    if (res.ok) { toast.success(status==='closed_tp'?'Signal closed at Take Profit':status==='closed_sl'?'Signal closed at Stop Loss':'Signal cancelled'); refreshHistory(); }
+    else toast.error(data?.error??'Unable to close signal');
   }
 
   const iS: React.CSSProperties = { width:'100%', background:'#0A0A0A', border:'1px solid rgba(255,255,255,.08)', color:'#fff', fontSize:'.75rem', padding:'9px 12px', outline:'none', fontFamily:'inherit', boxSizing:'border-box', transition:'border-color .3s' };
@@ -276,7 +279,7 @@ export default function AdminQuantPage() {
           <div style={{ width:'3px', height:'16px', background:'linear-gradient(180deg,#888,#444)' }} />
           <p style={{ fontFamily:'Cinzel,serif', fontSize:'.72rem', fontWeight:700, letterSpacing:'1px' }}>Signal History</p>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'120px 80px 110px 110px 110px 70px 100px 60px', gap:'.75rem', padding:'.6rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'110px 70px 100px 100px 100px 65px 100px 170px', gap:'.75rem', padding:'.6rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
           {['Instrument','Direction','Entry','TP','SL','R:R','Status',''].map(h => (
             <p key={h} style={{ fontSize:'.55rem', letterSpacing:'2px', textTransform:'uppercase', color:'#444' }}>{h}</p>
           ))}
@@ -295,7 +298,7 @@ export default function AdminQuantPage() {
           const sc = sig.status==='active' ? '#34D399' : sig.status==='closed_tp' ? '#D4AF37' : sig.status==='closed_sl' ? '#FF4757' : '#555';
           return (
             <div key={sig.id} className="sig-row"
-              style={{ display:'grid', gridTemplateColumns:'120px 80px 110px 110px 110px 70px 100px 60px', gap:'.75rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s' }}>
+              style={{ display:'grid', gridTemplateColumns:'110px 70px 100px 100px 100px 65px 100px 170px', gap:'.75rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s', minWidth:'980px' }}>
               <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.75rem', fontWeight:600 }}>{sig.instrument}</p>
               <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', fontWeight:700, color: sig.signal_type==='long' ? '#34D399' : '#FF4757' }}>
                 {sig.signal_type.toUpperCase()}
@@ -307,14 +310,11 @@ export default function AdminQuantPage() {
               <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', padding:'2px 7px', border:`1px solid ${sc}44`, color:sc, background:`${sc}11` }}>
                 {sig.status.replace('_',' ')}
               </span>
-              {sig.status === 'active' && (
-                <button onClick={() => closeSignal(sig.id)}
-                  style={{ background:'none', border:'1px solid rgba(255,71,87,.25)', color:'#FF4757', padding:'4px 8px', fontSize:'.6rem', cursor:'pointer', fontFamily:'inherit', transition:'all .2s' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background='rgba(255,71,87,.1)'}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background='none'}>
-                  Cancel
-                </button>
-              )}
+              {sig.status === 'active' ? <div style={{display:'flex',gap:'4px'}}>
+                <button onClick={() => closeSignal(sig.id,'closed_tp')} style={{...outcomeBtn,color:'#34D399',borderColor:'rgba(52,211,153,.3)'}}>TP ✓</button>
+                <button onClick={() => closeSignal(sig.id,'closed_sl')} style={{...outcomeBtn,color:'#FF4757',borderColor:'rgba(255,71,87,.3)'}}>SL</button>
+                <button onClick={() => closeSignal(sig.id,'cancelled')} style={outcomeBtn}>Cancel</button>
+              </div>:<span style={{fontFamily:'JetBrains Mono,monospace',fontSize:'.68rem',color:(sig.result_r??0)>0?'#34D399':(sig.result_r??0)<0?'#FF4757':'#666'}}>{sig.result_r==null?'—':`${sig.result_r>0?'+':''}${Number(sig.result_r).toFixed(2)}R`}</span>}
             </div>
           );
         })}
@@ -325,3 +325,4 @@ export default function AdminQuantPage() {
 
 const lblSt: React.CSSProperties = { display:'block', fontSize:'.58rem', letterSpacing:'2px', textTransform:'uppercase', color:'#666', marginBottom:'5px' };
 const errSt: React.CSSProperties = { fontSize:'.62rem', color:'#FF4757', marginTop:'3px' };
+const outcomeBtn:React.CSSProperties={background:'none',border:'1px solid rgba(255,255,255,.14)',color:'#777',padding:'4px 7px',fontSize:'.56rem',cursor:'pointer',fontFamily:'inherit'};

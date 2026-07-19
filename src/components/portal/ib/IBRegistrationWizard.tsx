@@ -7,6 +7,7 @@ import { z }          from 'zod';
 import { CheckCircle, Copy, ExternalLink, Loader2, ChevronRight, ChevronLeft, Clock, Shield } from 'lucide-react';
 import { toast }      from 'sonner';
 import type { IbRegistration } from '@/types';
+import { authFetch } from '@/lib/utils/authFetch';
 
 interface IBGuideStep { title: string; body: string; }
 interface IBGuide {
@@ -14,6 +15,15 @@ interface IBGuide {
   broker_name:   string;
   referral_link: string;
   min_deposit:   number;
+}
+
+interface BrokerOption {
+  id: string;
+  name: string;
+  referral_link: string;
+  min_deposit: number;
+  is_active: boolean;
+  sort_order: number;
 }
 
 const formSchema = z.object({
@@ -25,29 +35,42 @@ type FormData = z.infer<typeof formSchema>;
 
 interface Props {
   guide:       IBGuide;
+  brokers:     BrokerOption[];
   existing:    IbRegistration | null;
+  communityInvites: {platform:'telegram'|'discord';invite_url:string;expires_at:string|null;status:string}[];
+  communityAccounts: {platform:'telegram'|'discord';username:string|null;display_name:string|null;email_masked:string|null;email_matches_account:boolean|null;verified_at:string}[];
+  linking:{telegram:boolean;discord:boolean};
 }
 
 const STEP_ICONS  = ['🏛️', '💰', '📋', '✅'];
 const STEP_LABELS = ['IB Access', 'Open Account', 'Submit Details', 'Confirmation'];
 
-export default function IBRegistrationWizard({ guide, existing }: Props) {
+export default function IBRegistrationWizard({ guide, brokers, existing, communityInvites,communityAccounts,linking }: Props) {
   const [step,    setStep]    = useState(0);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(!!existing);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const activeBrokers = brokers.filter(b => b.is_active).sort((a,b) => a.sort_order-b.sort_order);
+  const availableBrokers = activeBrokers.length ? activeBrokers : [{
+    id: 'legacy-default', name: guide.broker_name, referral_link: guide.referral_link,
+    min_deposit: guide.min_deposit, is_active: true, sort_order: 0,
+  }];
+
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      broker_name:    existing?.broker_name    ?? guide.broker_name,
+      broker_name:    existing?.broker_name    ?? availableBrokers[0]?.name ?? guide.broker_name,
       account_number: existing?.account_number ?? '',
     },
   });
 
+  const selectedBrokerName = watch('broker_name');
+  const selectedBroker = availableBrokers.find(b => b.name === selectedBrokerName) ?? availableBrokers[0];
+
   async function onSubmit(values: FormData) {
     setLoading(true);
     try {
-      const res = await fetch('/api/me/ib', {
+      const res = await authFetch('/api/me/ib', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(values),
@@ -59,8 +82,19 @@ export default function IBRegistrationWizard({ guide, existing }: Props) {
     } finally { setLoading(false); }
   }
 
+  async function connectTelegram(){
+    const response=await authFetch('/api/community/telegram/link',{method:'POST'});const result=await response.json();
+    if(!response.ok){toast.error(result.error??'Telegram connection unavailable');return;}
+    window.open(result.url,'_blank','noopener,noreferrer');toast.success('Complete verification in Telegram, then refresh this page');
+  }
+  async function changeCommunityAccount(platform:'telegram'|'discord'){
+    if(!window.confirm(`Disconnect the verified ${platform} account? You will need to verify the replacement account before using its invitation.`))return;
+    const response=await authFetch(`/api/community/accounts?platform=${platform}`,{method:'DELETE'});if(!response.ok){toast.error((await response.json()).error??'Disconnect failed');return;}
+    toast.success(`${platform} account disconnected`);window.location.reload();
+  }
+
   function copyLink() {
-    navigator.clipboard.writeText(guide.referral_link);
+    navigator.clipboard.writeText(selectedBroker.referral_link);
     toast.success('Referral link copied!');
   }
 
@@ -82,6 +116,14 @@ export default function IBRegistrationWizard({ guide, existing }: Props) {
             ? 'Your IB Elite membership is now active. Enjoy full access to all premium features.'
             : `Your application was not approved. ${existing.admin_notes ?? 'Please contact support for more details.'}`}
         </p>
+        {isApproved && communityInvites.length>0 && <div style={{display:'flex',gap:'10px',justifyContent:'center',marginTop:'1.25rem',flexWrap:'wrap'}}>{communityInvites.map(invite=>{
+          const account=communityAccounts.find(item=>item.platform===invite.platform),requiresLink=linking[invite.platform]&&!account;
+          if(requiresLink&&invite.platform==='telegram')return <button key={invite.platform} onClick={connectTelegram} style={{padding:'10px 18px',background:'rgba(42,171,238,.12)',border:'1px solid rgba(42,171,238,.35)',color:'#5EC8F5',fontSize:'.72rem',fontWeight:600,cursor:'pointer'}}>Verify Telegram to Join →</button>;
+          if(requiresLink&&invite.platform==='discord')return <a key={invite.platform} href="/api/community/discord/connect" style={{padding:'10px 18px',background:'rgba(88,101,242,.12)',border:'1px solid rgba(88,101,242,.35)',color:'#8B96FF',textDecoration:'none',fontSize:'.72rem',fontWeight:600}}>Connect Discord to Join →</a>;
+          return <a key={invite.platform} href={invite.invite_url} target="_blank" rel="noopener noreferrer" style={{padding:'10px 18px',background:invite.platform==='telegram'?'rgba(42,171,238,.12)':'rgba(88,101,242,.12)',border:`1px solid ${invite.platform==='telegram'?'rgba(42,171,238,.35)':'rgba(88,101,242,.35)'}`,color:invite.platform==='telegram'?'#5EC8F5':'#8B96FF',textDecoration:'none',fontSize:'.72rem',fontWeight:600,textTransform:'capitalize'}}>Join {invite.platform} →</a>;
+        })}</div>}
+        {isApproved&&communityAccounts.length>0&&<div style={{fontSize:'.62rem',color:'#666',marginTop:'12px',display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap'}}>{communityAccounts.map(a=><span key={a.platform}>✓ {a.platform} ({a.username?`@${a.username}`:a.display_name??'linked'}) <button onClick={()=>changeCommunityAccount(a.platform)} style={{background:'none',border:0,color:'#D4AF37',fontSize:'.6rem',cursor:'pointer',textDecoration:'underline'}}>change</button></span>)}</div>}
+        {isApproved && communityInvites.length===0 && <p style={{fontSize:'.68rem',color:'#666',marginTop:'1rem'}}>Community links are being configured. Your website access is already active.</p>}
       </div>
     );
   }
@@ -161,21 +203,27 @@ export default function IBRegistrationWizard({ guide, existing }: Props) {
           <h3 style={{ fontFamily: 'Cinzel,serif', fontWeight: 700, color: '#fff' }}>Open Your Broker Account</h3>
           <div style={{ background: '#111', border: '1px solid rgba(255,255,255,.06)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
+              <label style={lblS}>Choose an Approved Broker *</label>
+              <select {...register('broker_name')} style={{...iS,cursor:'pointer'}}>
+                {availableBrokers.map(b => <option key={b.id} value={b.name}>{b.name} — min. ${b.min_deposit}</option>)}
+              </select>
+            </div>
+            <div>
               <p style={{ fontSize: '.6rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#D4AF37', marginBottom: '4px' }}>Approved Broker</p>
-              <p style={{ color: '#fff', fontWeight: 600 }}>{guide.broker_name}</p>
+              <p style={{ color: '#fff', fontWeight: 600 }}>{selectedBroker.name}</p>
             </div>
             <div>
               <p style={{ fontSize: '.6rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#888', marginBottom: '6px' }}>Minimum Deposit</p>
-              <p style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '1.5rem', fontWeight: 700, color: '#D4AF37' }}>${guide.min_deposit.toLocaleString()}</p>
+              <p style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '1.5rem', fontWeight: 700, color: '#D4AF37' }}>${selectedBroker.min_deposit.toLocaleString()}</p>
             </div>
             <div>
               <p style={{ fontSize: '.6rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#888', marginBottom: '8px' }}>Your Referral Link</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ flex: 1, background: '#0A0A0A', border: '1px solid rgba(255,255,255,.08)', padding: '8px 12px', fontSize: '.72rem', color: '#D4AF37', fontFamily: 'JetBrains Mono,monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {guide.referral_link}
+                  {selectedBroker.referral_link}
                 </div>
                 <button onClick={copyLink} style={iconBtnS}><Copy size={13} /></button>
-                <a href={guide.referral_link} target="_blank" rel="noopener noreferrer" style={iconBtnS}><ExternalLink size={13} /></a>
+                <a href={selectedBroker.referral_link} target="_blank" rel="noopener noreferrer" style={iconBtnS}><ExternalLink size={13} /></a>
               </div>
               <p style={{ fontSize: '.62rem', color: '#555', marginTop: '8px' }}>⚠️ You MUST use this link to qualify for IB access.</p>
             </div>
@@ -199,9 +247,7 @@ export default function IBRegistrationWizard({ guide, existing }: Props) {
           <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label style={lblS}>Broker Name *</label>
-              <input {...register('broker_name')} style={iS} placeholder="e.g. IC Markets"
-                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(212,175,55,.4)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(255,255,255,.08)')} />
+              <div style={{...iS,color:'#D4AF37'}}>{selectedBroker.name}</div>
               {errors.broker_name && <p style={errS}>{errors.broker_name.message}</p>}
             </div>
             <div>
@@ -239,7 +285,7 @@ export default function IBRegistrationWizard({ guide, existing }: Props) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', textAlign: 'left', maxWidth: '320px', width: '100%', marginTop: '4px' }}>
             <div style={{ background: '#111', border: '1px solid rgba(255,255,255,.06)', padding: '10px' }}>
               <p style={{ fontSize: '.58rem', color: '#555', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '4px' }}>Broker</p>
-              <p style={{ fontSize: '.75rem', color: '#fff' }}>{existing?.broker_name ?? guide.broker_name}</p>
+              <p style={{ fontSize: '.75rem', color: '#fff' }}>{existing?.broker_name ?? selectedBroker.name}</p>
             </div>
             <div style={{ background: '#111', border: '1px solid rgba(255,255,255,.06)', padding: '10px' }}>
               <p style={{ fontSize: '.58rem', color: '#555', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '4px' }}>Status</p>
