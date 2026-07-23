@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {requireAdminSession,supabaseAdmin} from '@/lib/supabase/server';
 import {signedVideoUrl} from '@/lib/lms/media';
+import {normalizeCertificateLayout} from '@/lib/lms/certificateLayout';
 
 export const dynamic='force-dynamic';
 
@@ -45,6 +46,9 @@ export async function PATCH(req:NextRequest,{params}:{params:Promise<{id:string}
       const value=String(body.certificate_title??'').trim();
       if(value.length<2||value.length>120)return NextResponse.json({error:'Certificate title must be between 2 and 120 characters'},{status:400});
       update.certificate_title=value;
+    }
+    if(body.certificate_layout!==undefined){
+      update.certificate_layout=normalizeCertificateLayout(body.certificate_layout);
     }
     for(const key of ['certificate_signatory_name','certificate_signatory_title'] as const){
       if(body[key]!==undefined){

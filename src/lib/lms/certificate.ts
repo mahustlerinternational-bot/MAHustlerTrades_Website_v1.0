@@ -5,6 +5,10 @@ import {PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage} from 'pdf-l
 import {downloadCertificateTemplate} from '@/lib/lms/media';
 import {getMemberLmsState} from '@/lib/lms/memberState';
 import {supabaseAdmin} from '@/lib/supabase/server';
+import {
+  normalizeCertificateLayout,
+  type CertificatePlaceholderLayout,
+} from '@/lib/lms/certificateLayout';
 
 type CertificateRecord = {
   id: string;
@@ -43,7 +47,7 @@ export async function ensureCourseCertificate(userId: string, courseId: string) 
     supabaseAdmin.from('profiles').select('full_name,member_code').eq('id', userId).single(),
     supabaseAdmin
       .from('courses')
-      .select('title,certificate_template_path,certificate_title,certificate_signatory_name,certificate_signatory_title')
+      .select('title,certificate_template_path,certificate_title,certificate_signatory_name,certificate_signatory_title,certificate_layout')
       .eq('id', courseId)
       .single(),
   ]);
@@ -65,6 +69,7 @@ export async function ensureCourseCertificate(userId: string, courseId: string) 
       certificate_title: course.data.certificate_title,
       signatory_name: course.data.certificate_signatory_name,
       signatory_title: course.data.certificate_signatory_title,
+      certificate_layout: normalizeCertificateLayout(course.data.certificate_layout),
     },
   };
   const inserted = await supabaseAdmin
@@ -100,6 +105,34 @@ function centeredText(
   page.drawText(text, {
     x: (page.getWidth() - width) / 2,
     y,
+    size,
+    font,
+    color,
+  });
+}
+
+function positionedText(
+  page: PDFPage,
+  text: string,
+  layout: CertificatePlaceholderLayout,
+  font: PDFFont,
+  color: ReturnType<typeof rgb>,
+  maxWidth: number,
+) {
+  let size = layout.font_size;
+  while (size > 8 && font.widthOfTextAtSize(text, size) > maxWidth) size -= 1;
+  const textWidth = font.widthOfTextAtSize(text, size);
+  const anchorX = page.getWidth() * layout.x;
+  const x =
+    layout.align === 'center'
+      ? anchorX - textWidth / 2
+      : layout.align === 'right'
+        ? anchorX - textWidth
+        : anchorX;
+
+  page.drawText(text, {
+    x: Math.min(page.getWidth() - textWidth - 12, Math.max(12, x)),
+    y: page.getHeight() * (1 - layout.y),
     size,
     font,
     color,
@@ -189,14 +222,15 @@ async function createCertificateDocument(record: CertificateRecord) {
     year: 'numeric',
     timeZone: 'Asia/Dubai',
   }).format(new Date(record.issued_at));
+  const layout = normalizeCertificateLayout(metadata.certificate_layout);
 
   centeredText(page, 'MAHUSTLER TRADES ACADEMY', height * 0.79, bold, 15, gold, width * 0.75);
-  centeredText(page, certificateTitle, height * 0.68, bold, 30, ink, width * 0.72);
+  positionedText(page, certificateTitle, layout.certificate_title, bold, ink, width * 0.82);
   centeredText(page, 'This certifies that', height * 0.59, regular, 13, muted, width * 0.7);
-  centeredText(page, memberName, height * 0.49, bold, 28, gold, width * 0.68);
+  positionedText(page, memberName, layout.member_name, bold, gold, width * 0.82);
   centeredText(page, 'has successfully completed', height * 0.41, regular, 13, muted, width * 0.7);
-  centeredText(page, courseTitle, height * 0.33, bold, 20, ink, width * 0.72);
-  centeredText(page, `Issued ${issuedDate}`, height * 0.22, regular, 10, muted, width * 0.65);
+  positionedText(page, courseTitle, layout.course_title, bold, ink, width * 0.82);
+  positionedText(page, `Issued ${issuedDate}`, layout.issued_date, regular, muted, width * 0.82);
   centeredText(page, record.certificate_number, height * 0.17, bold, 9, muted, width * 0.65);
 
   const signatoryName = String(metadata.signatory_name ?? '').trim();

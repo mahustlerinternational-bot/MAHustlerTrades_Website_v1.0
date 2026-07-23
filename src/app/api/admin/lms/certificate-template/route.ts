@@ -1,10 +1,45 @@
 import {NextRequest, NextResponse} from 'next/server';
 
 import {
+  downloadCertificateTemplate,
   removeCertificateTemplate,
   uploadCertificateTemplate,
 } from '@/lib/lms/media';
 import {requireAdminSession, supabaseAdmin} from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  const session = await requireAdminSession(req);
+  if (!session) return NextResponse.json({error: 'Forbidden'}, {status: 403});
+  const courseId = String(new URL(req.url).searchParams.get('course_id') ?? '');
+  if (!courseId) return NextResponse.json({error: 'course_id is required'}, {status: 400});
+
+  const course = await supabaseAdmin
+    .from('courses')
+    .select('certificate_template_path,certificate_template_name')
+    .eq('id', courseId)
+    .maybeSingle();
+  if (!course.data?.certificate_template_path) {
+    return NextResponse.json({error: 'Certificate template not found'}, {status: 404});
+  }
+
+  try {
+    const template = await downloadCertificateTemplate(course.data.certificate_template_path);
+    return new NextResponse(await template.arrayBuffer(), {
+      headers: {
+        'Content-Type': template.type || 'application/octet-stream',
+        'Content-Disposition': `inline; filename="${String(course.data.certificate_template_name ?? 'certificate-template').replace(/["\r\n]/g, '')}"`,
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {error: error instanceof Error ? error.message : 'Template preview failed'},
+      {status: 500},
+    );
+  }
+}
 
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession(req);

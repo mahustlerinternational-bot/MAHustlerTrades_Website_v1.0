@@ -51,6 +51,7 @@ type BuilderCourse = {
   certificate_title?: string | null;
   certificate_signatory_name?: string | null;
   certificate_signatory_title?: string | null;
+  certificate_layout?: import('@/lib/lms/certificateLayout').CertificateLayout | null;
 };
 
 type BuilderData = {

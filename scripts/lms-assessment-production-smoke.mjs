@@ -231,9 +231,17 @@ try {
       certificate_title: 'Verified Quant Learning Certificate',
       certificate_signatory_name: 'MAHustler Trades',
       certificate_signatory_title: 'Academy Director',
+      certificate_layout: {
+        certificate_title: {x: 0.5, y: 0.27, align: 'center', font_size: 31},
+        member_name: {x: 0.44, y: 0.5, align: 'left', font_size: 29},
+        course_title: {x: 0.5, y: 0.69, align: 'center', font_size: 21},
+        issued_date: {x: 0.82, y: 0.84, align: 'right', font_size: 11},
+      },
     }),
   });
   assert.equal(settings.status, 200, JSON.stringify(settings.body));
+  assert.equal(settings.body.certificate_layout.member_name.x, 0.44);
+  assert.equal(settings.body.certificate_layout.member_name.align, 'left');
 
   const templateDocument = await PDFDocument.create();
   templateDocument.addPage([842, 595]);
@@ -250,6 +258,13 @@ try {
   });
   assert.equal(template.status, 200, JSON.stringify(template.body));
   certificateTemplatePath = template.body.certificate_template_path;
+  const templatePreview = await api(
+    `/api/admin/lms/certificate-template?course_id=${courseId}`,
+    admin.token,
+  );
+  assert.equal(templatePreview.status, 200);
+  assert.match(templatePreview.contentType, /application\/pdf/);
+  assert.equal(String.fromCharCode(...templatePreview.bytes.slice(0, 4)), '%PDF');
 
   const enrollment = await api('/api/me/courses', member.token, {
     method: 'POST',
@@ -307,6 +322,15 @@ try {
   const finalResult = await answer(member.token, finalQuiz.id);
   assert.equal(finalResult.status, 'passed');
   assert.equal(finalResult.certificate_issued, true);
+  const issuedCertificate = await adminClient
+    .from('course_certificates')
+    .select('metadata')
+    .eq('course_id', courseId)
+    .eq('user_id', member.id)
+    .single();
+  if (issuedCertificate.error) throw new Error(issuedCertificate.error.message);
+  assert.equal(issuedCertificate.data.metadata.certificate_layout.member_name.x, 0.44);
+  assert.equal(issuedCertificate.data.metadata.certificate_layout.issued_date.align, 'right');
 
   state = await api(`/api/me/courses/${courseId}/lms`, member.token);
   assert.equal(state.body.summary.percent, 100);
@@ -325,7 +349,7 @@ try {
   assert.equal(String.fromCharCode(...certificate.bytes.slice(0, 4)), '%PDF');
 
   console.log(
-    'LMS assessment production smoke passed: submodules, secure scoring, failed retry, sequential gates, module/final assessments, progress, template upload, and generated certificate',
+    'LMS assessment production smoke passed: submodules, secure scoring, failed retry, sequential gates, module/final assessments, progress, authenticated template preview, saved placeholder layout, and generated certificate',
   );
 } finally {
   if (certificateTemplatePath) {
