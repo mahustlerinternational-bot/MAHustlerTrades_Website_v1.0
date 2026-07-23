@@ -1,11 +1,26 @@
-import {NextRequest,NextResponse} from 'next/server';
-import {requireAuthSession,supabaseAdmin} from '@/lib/supabase/server';
+import {NextRequest, NextResponse} from 'next/server';
+
 import {hasCourseAccess} from '@/lib/lms/access';
-import {signedVideoUrl} from '@/lib/lms/media';
+import {getMemberLmsState} from '@/lib/lms/memberState';
+import {requireAuthSession} from '@/lib/supabase/server';
 
-export const dynamic='force-dynamic';
+export const dynamic = 'force-dynamic';
 
-export async function GET(req:NextRequest,{params}:{params:Promise<{id:string}>}){
-  const session=await requireAuthSession(req);if(!session)return NextResponse.json({error:'Unauthorized'},{status:401});const {id}=await params;if(!await hasCourseAccess(session.userId,id))return NextResponse.json({error:'An active course enrollment is required'},{status:403});
-  const [course,modules]=await Promise.all([supabaseAdmin.from('courses').select('id,title,description,cover_image_url,level,market').eq('id',id).eq('is_published',true).single(),supabaseAdmin.from('course_modules').select('*').eq('course_id',id).order('sort_order')]);if(course.error)return NextResponse.json({error:'Course not found or unavailable'},{status:404});if(modules.error)return NextResponse.json({error:modules.error.message},{status:500});const moduleIds=(modules.data??[]).map(module=>module.id);const lessons=moduleIds.length?await supabaseAdmin.from('course_lessons').select('id,module_id,title,content,video_url,video_storage_path,duration_seconds,sort_order,is_preview,is_published').in('module_id',moduleIds).eq('is_published',true).order('sort_order'):{data:[],error:null};if(lessons.error)return NextResponse.json({error:lessons.error.message},{status:500});const lessonIds=(lessons.data??[]).map(lesson=>lesson.id);const progress=lessonIds.length?await supabaseAdmin.from('lesson_progress').select('lesson_id,status,progress_seconds,completed_at,last_viewed_at').eq('user_id',session.userId).in('lesson_id',lessonIds):{data:[],error:null};if(progress.error)return NextResponse.json({error:progress.error.message},{status:500});const progressById=new Map((progress.data??[]).map(item=>[item.lesson_id,item]));const memberLessons=await Promise.all((lessons.data??[]).map(async lesson=>({...lesson,video_storage_path:undefined,playback_url:lesson.video_storage_path?await signedVideoUrl(lesson.video_storage_path):lesson.video_url,progress:progressById.get(lesson.id)??null})));const completed=memberLessons.filter(lesson=>lesson.progress?.status==='completed').length,total=memberLessons.length;const latest=[...(progress.data??[])].sort((a,b)=>String(b.last_viewed_at).localeCompare(String(a.last_viewed_at)))[0];return NextResponse.json({course:course.data,modules:(modules.data??[]).map(module=>({...module,lessons:memberLessons.filter(lesson=>lesson.module_id===module.id)})),summary:{completed,total,percent:total?Math.round(completed/total*100):0,last_lesson_id:latest?.lesson_id??null}});
+export async function GET(
+  req: NextRequest,
+  {params}: {params: Promise<{id: string}>},
+) {
+  const session = await requireAuthSession(req);
+  if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  const {id} = await params;
+  if (!(await hasCourseAccess(session.userId, id))) {
+    return NextResponse.json({error: 'An active course enrollment is required'}, {status: 403});
+  }
+  try {
+    return NextResponse.json(await getMemberLmsState(session.userId, id));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Course could not be loaded';
+    const status = /not found|unavailable/i.test(message) ? 404 : 500;
+    return NextResponse.json({error: message}, {status});
+  }
 }

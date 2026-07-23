@@ -3,6 +3,7 @@ import 'server-only';
 import {supabaseAdmin} from '@/lib/supabase/server';
 
 export const COURSE_MEDIA_BUCKET='course-media';
+export const CERTIFICATE_MEDIA_BUCKET='course-certificates';
 // Supabase's default project-level upload cap is 50 MB. Larger course videos
 // should use the external URL option (YouTube, Vimeo, Bunny, Mux, etc.).
 export const MAX_VIDEO_SIZE=50*1024*1024;
@@ -36,3 +37,46 @@ export async function signedVideoUrl(path:string|null|undefined){
 }
 
 export async function removeVideo(path:string|null|undefined){if(path)await supabaseAdmin.storage.from(COURSE_MEDIA_BUCKET).remove([path]);}
+
+export const CERTIFICATE_TEMPLATE_TYPES = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['application/pdf', 'pdf'],
+]);
+export const MAX_CERTIFICATE_TEMPLATE_SIZE = 10 * 1024 * 1024;
+
+export async function ensureCertificateMediaBucket() {
+  const {data} = await supabaseAdmin.storage.getBucket(CERTIFICATE_MEDIA_BUCKET);
+  if (data) return;
+  const {error} = await supabaseAdmin.storage.createBucket(CERTIFICATE_MEDIA_BUCKET, {
+    public: false,
+    fileSizeLimit: MAX_CERTIFICATE_TEMPLATE_SIZE,
+    allowedMimeTypes: [...CERTIFICATE_TEMPLATE_TYPES.keys()],
+  });
+  if (error && !/already exists/i.test(error.message)) throw new Error(error.message);
+}
+
+export async function uploadCertificateTemplate(courseId: string, file: File) {
+  const extension = CERTIFICATE_TEMPLATE_TYPES.get(file.type);
+  if (!extension) throw new Error('Certificate template must be a PNG, JPG, or PDF file');
+  if (file.size <= 0 || file.size > MAX_CERTIFICATE_TEMPLATE_SIZE) {
+    throw new Error('Certificate template must be 10 MB or smaller');
+  }
+  await ensureCertificateMediaBucket();
+  const path = `templates/${courseId}/${crypto.randomUUID()}.${extension}`;
+  const {error} = await supabaseAdmin.storage
+    .from(CERTIFICATE_MEDIA_BUCKET)
+    .upload(path, file, {contentType: file.type, upsert: false});
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+export async function removeCertificateTemplate(path: string | null | undefined) {
+  if (path) await supabaseAdmin.storage.from(CERTIFICATE_MEDIA_BUCKET).remove([path]);
+}
+
+export async function downloadCertificateTemplate(path: string) {
+  const result = await supabaseAdmin.storage.from(CERTIFICATE_MEDIA_BUCKET).download(path);
+  if (result.error || !result.data) throw new Error(result.error?.message ?? 'Certificate template could not be loaded');
+  return result.data;
+}

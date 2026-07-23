@@ -1,0 +1,219 @@
+import 'server-only';
+
+import {PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage} from 'pdf-lib';
+
+import {downloadCertificateTemplate} from '@/lib/lms/media';
+import {getMemberLmsState} from '@/lib/lms/memberState';
+import {supabaseAdmin} from '@/lib/supabase/server';
+
+type CertificateRecord = {
+  id: string;
+  course_id: string;
+  user_id: string;
+  certificate_number: string;
+  verification_code: string;
+  template_path_snapshot: string | null;
+  issued_at: string;
+  metadata: Record<string, unknown>;
+};
+
+function randomCode(length = 10) {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, length).toUpperCase();
+}
+
+function createCertificateNumber() {
+  return `MAHT-CERT-${new Date().getUTCFullYear()}-${randomCode(8)}`;
+}
+
+export async function ensureCourseCertificate(userId: string, courseId: string) {
+  const existing = await supabaseAdmin
+    .from('course_certificates')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .maybeSingle();
+  if (existing.data) return existing.data as CertificateRecord;
+
+  const state = await getMemberLmsState(userId, courseId, false);
+  if (!state.certificate.eligible) {
+    throw new Error('Complete all lessons and pass the final assessment before claiming this certificate');
+  }
+
+  const [profile, course] = await Promise.all([
+    supabaseAdmin.from('profiles').select('full_name,member_code').eq('id', userId).single(),
+    supabaseAdmin
+      .from('courses')
+      .select('title,certificate_template_path,certificate_title,certificate_signatory_name,certificate_signatory_title')
+      .eq('id', courseId)
+      .single(),
+  ]);
+  if (profile.error) throw new Error(profile.error.message);
+  if (course.error) throw new Error(course.error.message);
+
+  const issuedAt = new Date().toISOString();
+  const payload = {
+    course_id: courseId,
+    user_id: userId,
+    certificate_number: createCertificateNumber(),
+    verification_code: randomCode(16),
+    template_path_snapshot: course.data.certificate_template_path,
+    issued_at: issuedAt,
+    metadata: {
+      member_name: profile.data.full_name ?? 'MAHustler Member',
+      member_code: profile.data.member_code ?? null,
+      course_title: course.data.title,
+      certificate_title: course.data.certificate_title,
+      signatory_name: course.data.certificate_signatory_name,
+      signatory_title: course.data.certificate_signatory_title,
+    },
+  };
+  const inserted = await supabaseAdmin
+    .from('course_certificates')
+    .upsert(payload, {onConflict: 'course_id,user_id', ignoreDuplicates: true})
+    .select('*')
+    .maybeSingle();
+  if (inserted.error) throw new Error(inserted.error.message);
+  if (inserted.data) return inserted.data as CertificateRecord;
+
+  const raced = await supabaseAdmin
+    .from('course_certificates')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .single();
+  if (raced.error) throw new Error(raced.error.message);
+  return raced.data as CertificateRecord;
+}
+
+function centeredText(
+  page: PDFPage,
+  text: string,
+  y: number,
+  font: PDFFont,
+  preferredSize: number,
+  color: ReturnType<typeof rgb>,
+  maxWidth: number,
+) {
+  let size = preferredSize;
+  while (size > 10 && font.widthOfTextAtSize(text, size) > maxWidth) size -= 1;
+  const width = font.widthOfTextAtSize(text, size);
+  page.drawText(text, {
+    x: (page.getWidth() - width) / 2,
+    y,
+    size,
+    font,
+    color,
+  });
+}
+
+async function createCertificateDocument(record: CertificateRecord) {
+  const templatePath = record.template_path_snapshot;
+  let document: PDFDocument;
+  let page: PDFPage;
+  let hasTemplate = false;
+
+  if (templatePath) {
+    try {
+      const template = await downloadCertificateTemplate(templatePath);
+      const bytes = new Uint8Array(await template.arrayBuffer());
+      if (templatePath.toLowerCase().endsWith('.pdf')) {
+        document = await PDFDocument.load(bytes);
+        page = document.getPages()[0];
+      } else {
+        document = await PDFDocument.create();
+        const image = templatePath.toLowerCase().endsWith('.png')
+          ? await document.embedPng(bytes)
+          : await document.embedJpg(bytes);
+        const dimensions = image.scale(1);
+        page = document.addPage([dimensions.width, dimensions.height]);
+        page.drawImage(image, {
+          x: 0,
+          y: 0,
+          width: dimensions.width,
+          height: dimensions.height,
+        });
+      }
+      hasTemplate = true;
+    } catch {
+      document = await PDFDocument.create();
+      page = document.addPage([842, 595]);
+    }
+  } else {
+    document = await PDFDocument.create();
+    page = document.addPage([842, 595]);
+  }
+
+  const {width, height} = page.getSize();
+  const regular = await document.embedFont(StandardFonts.Helvetica);
+  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const gold = rgb(0.83, 0.69, 0.22);
+  const ink = hasTemplate ? rgb(0.06, 0.06, 0.06) : rgb(0.95, 0.95, 0.95);
+  const muted = hasTemplate ? rgb(0.28, 0.28, 0.28) : rgb(0.62, 0.62, 0.62);
+
+  if (!hasTemplate) {
+    page.drawRectangle({x: 0, y: 0, width, height, color: rgb(0.035, 0.035, 0.035)});
+    page.drawRectangle({
+      x: 22,
+      y: 22,
+      width: width - 44,
+      height: height - 44,
+      borderColor: gold,
+      borderWidth: 2,
+    });
+    page.drawRectangle({
+      x: 31,
+      y: 31,
+      width: width - 62,
+      height: height - 62,
+      borderColor: rgb(0.45, 0.33, 0.08),
+      borderWidth: 0.8,
+    });
+  } else {
+    page.drawRectangle({
+      x: width * 0.12,
+      y: height * 0.19,
+      width: width * 0.76,
+      height: height * 0.57,
+      color: rgb(1, 1, 1),
+      opacity: 0.78,
+    });
+  }
+
+  const metadata = record.metadata ?? {};
+  const memberName = String(metadata.member_name ?? 'MAHustler Member');
+  const courseTitle = String(metadata.course_title ?? 'MAHustler Trades Course');
+  const certificateTitle = String(metadata.certificate_title ?? 'Certificate of Completion');
+  const issuedDate = new Intl.DateTimeFormat('en-AE', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Dubai',
+  }).format(new Date(record.issued_at));
+
+  centeredText(page, 'MAHUSTLER TRADES ACADEMY', height * 0.79, bold, 15, gold, width * 0.75);
+  centeredText(page, certificateTitle, height * 0.68, bold, 30, ink, width * 0.72);
+  centeredText(page, 'This certifies that', height * 0.59, regular, 13, muted, width * 0.7);
+  centeredText(page, memberName, height * 0.49, bold, 28, gold, width * 0.68);
+  centeredText(page, 'has successfully completed', height * 0.41, regular, 13, muted, width * 0.7);
+  centeredText(page, courseTitle, height * 0.33, bold, 20, ink, width * 0.72);
+  centeredText(page, `Issued ${issuedDate}`, height * 0.22, regular, 10, muted, width * 0.65);
+  centeredText(page, record.certificate_number, height * 0.17, bold, 9, muted, width * 0.65);
+
+  const signatoryName = String(metadata.signatory_name ?? '').trim();
+  if (signatoryName) {
+    centeredText(page, signatoryName, height * 0.10, bold, 10, ink, width * 0.45);
+    const signatoryTitle = String(metadata.signatory_title ?? '').trim();
+    if (signatoryTitle) centeredText(page, signatoryTitle, height * 0.07, regular, 8, muted, width * 0.45);
+  }
+
+  document.setTitle(`${courseTitle} — ${memberName}`);
+  document.setAuthor('MAHustler Trades Academy');
+  document.setSubject(`Electronic certificate ${record.certificate_number}`);
+  document.setCreationDate(new Date(record.issued_at));
+  return document;
+}
+
+export async function generateCertificatePdf(record: CertificateRecord) {
+  const document = await createCertificateDocument(record);
+  return document.save();
+}

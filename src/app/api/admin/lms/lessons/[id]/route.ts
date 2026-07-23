@@ -17,5 +17,17 @@ export async function PATCH(req:NextRequest,{params}:{params:Promise<{id:string}
 }
 
 export async function DELETE(req:NextRequest,{params}:{params:Promise<{id:string}>}){
-  const session=await requireAdminSession(req);if(!session)return NextResponse.json({error:'Forbidden'},{status:403});const {id}=await params;const current=await supabaseAdmin.from('course_lessons').select('video_storage_path').eq('id',id).maybeSingle();const result=await supabaseAdmin.from('course_lessons').delete().eq('id',id);if(result.error)return NextResponse.json({error:result.error.message},{status:500});await removeVideo(current.data?.video_storage_path);return NextResponse.json({success:true});
+  const session=await requireAdminSession(req);if(!session)return NextResponse.json({error:'Forbidden'},{status:403});
+  const {id}=await params;
+  const [current,children]=await Promise.all([
+    supabaseAdmin.from('course_lessons').select('video_storage_path').eq('id',id).maybeSingle(),
+    supabaseAdmin.from('course_lessons').select('video_storage_path').eq('parent_lesson_id',id),
+  ]);
+  const result=await supabaseAdmin.from('course_lessons').delete().eq('id',id);
+  if(result.error)return NextResponse.json({error:result.error.message},{status:500});
+  await Promise.all([
+    removeVideo(current.data?.video_storage_path),
+    ...(children.data??[]).map(child=>removeVideo(child.video_storage_path)),
+  ]);
+  return NextResponse.json({success:true});
 }

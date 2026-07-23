@@ -33,16 +33,18 @@ export default async function MyEventsPage() {
       <div style={{ marginBottom:'2rem', animation:'fadeUp .5s ease forwards' }}>
         <p style={{ fontFamily:'Cinzel,serif', fontSize:'.58rem', letterSpacing:'5px', textTransform:'uppercase', color:'#D4AF37', marginBottom:'8px' }}>Calendar</p>
         <h1 style={{ fontFamily:'Cinzel,serif', fontSize:'2rem', fontWeight:900 }}>My Events</h1>
-        <p style={{ fontSize:'.72rem', color:'#555', marginTop:'6px' }}>
-          {registrations.length > 0 ? `${registrations.length} registration${registrations.length !== 1 ? 's' : ''}` : 'No events registered yet'}
+        <p style={{ fontSize:'.72rem', color:'#666', marginTop:'8px', maxWidth:'620px', lineHeight:1.7 }}>
+          {registrations.length > 0
+            ? `Manage your ${registrations.length} event registration${registrations.length !== 1 ? 's' : ''}, schedule and private access details.`
+            : 'Your registered events, schedules and access details will appear here.'}
         </p>
       </div>
 
       {registrations.length > 0 ? (
         <div style={{ marginBottom:'3rem', animation:'fadeUp .5s .08s ease forwards', opacity:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'1.25rem' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'1.5rem' }}>
             <div style={{ width:'3px', height:'18px', background:'linear-gradient(180deg,#D4AF37,#B8860B)' }} />
-            <p style={{ fontFamily:'Cinzel,serif', fontSize:'.72rem', fontWeight:700, letterSpacing:'1px' }}>Your Registrations</p>
+            <p style={{ fontFamily:'Cinzel,serif', fontSize:'.72rem', fontWeight:700, letterSpacing:'1px' }}>Registered Events</p>
           </div>
           <MyEventsList registrations={registrations as any} />
         </div>

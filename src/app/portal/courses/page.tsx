@@ -1,5 +1,6 @@
 // src/app/portal/courses/page.tsx
 import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server';
+import { getCourseProgressSummaries } from '@/lib/lms/memberState';
 import EnrolledCourseList  from '@/components/portal/courses/EnrolledCourseList';
 import CourseMarketplace   from '@/components/portal/courses/CourseMarketplace';
 
@@ -15,9 +16,30 @@ async function getData(userId: string) {
       supabaseAdmin.from('courses').select('*').eq('is_published', true).order('sort_order'),
       supabaseAdmin.from('profiles').select('ib_status').eq('id',userId).single(),
     ]);
-    const enrolledIds = new Set((enrollRes.data ?? []).map((e: any) => e.course_id));
+    const enrollments = enrollRes.data ?? [];
+    const enrolledIds = new Set(enrollments.map((e: any) => e.course_id));
+    const courseIds = [...enrolledIds] as string[];
+    // Reuse the same gated LMS progress calculation used by the course player,
+    // including module/final assessments and certificate status.
+    const progressByCourse = await getCourseProgressSummaries(userId, courseIds);
+
     return {
-      enrolled:  enrollRes.data ?? [],
+      enrolled: enrollments.map((enrollment: any) => ({
+        ...enrollment,
+        lms_summary: progressByCourse.get(enrollment.course_id) ?? {
+          completed: 0,
+          total: 0,
+          percent: 0,
+          completed_assessments: 0,
+          total_assessments: 0,
+          average_score: null,
+          latest_score: null,
+          last_viewed_at: null,
+          last_lesson_id: null,
+          next_lesson_title: null,
+          certificate_issued: false,
+        },
+      })),
       available: (allCoursesRes.data ?? []).filter((c: any) => !enrolledIds.has(c.id)),
       ibApproved:profileRes.data?.ib_status==='active',
     };
@@ -39,8 +61,10 @@ export default async function MyCourses() {
       <div style={{ marginBottom: '2rem', animation: 'fadeUp .5s ease forwards' }}>
         <p style={{ fontFamily:'Cinzel,serif', fontSize:'.58rem', letterSpacing:'5px', textTransform:'uppercase', color:'#D4AF37', marginBottom:'8px' }}>Academy</p>
         <h1 style={{ fontFamily:'Cinzel,serif', fontSize:'2rem', fontWeight:900 }}>My Courses</h1>
-        <p style={{ fontSize:'.72rem', color:'#555', marginTop:'6px' }}>
-          {enrolled.length > 0 ? `${enrolled.length} course${enrolled.length !== 1 ? 's' : ''} enrolled` : 'No courses enrolled yet'}
+        <p style={{ fontSize:'.72rem', color:'#666', marginTop:'8px', maxWidth:'620px', lineHeight:1.7 }}>
+          {enrolled.length > 0
+            ? `Continue learning across your ${enrolled.length} enrolled course${enrolled.length !== 1 ? 's' : ''} and track every completed lesson.`
+            : 'Your enrolled courses and learning progress will appear here.'}
         </p>
       </div>
 

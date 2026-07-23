@@ -7,6 +7,7 @@ import SignalHistoryPanel from '@/components/portal/quant/SignalHistoryPanel';
 import type { QuantSignal } from '@/types';
 import SignalEventFeed from '@/components/portal/quant/SignalEventFeed';
 import type { SignalFeedEvent } from '@/types';
+import {getCourseProgressSummaries} from '@/lib/lms/memberState';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,22 @@ async function getData(userId: string) {
       supabaseAdmin.from('quant_signals').select('*').order('broadcasted_at', { ascending: false }).limit(100),
       supabaseAdmin.from('signal_feed_events').select('*').order('occurred_at',{ascending:false}).limit(30),
     ]);
-    return { enrollments: enrollRes.data ?? [], events: eventRes.data ?? [], profile: profileRes.data, signal: signalRes.data, signalHistory:historyRes.data??[], feedEvents:feedRes.data??[] };
+    const enrollments = enrollRes.data ?? [];
+    const progressByCourse = await getCourseProgressSummaries(
+      userId,
+      enrollments.map((enrollment: any) => enrollment.course_id),
+    );
+    return {
+      enrollments: enrollments.map((enrollment: any) => ({
+        ...enrollment,
+        lms_summary: progressByCourse.get(enrollment.course_id),
+      })),
+      events: eventRes.data ?? [],
+      profile: profileRes.data,
+      signal: signalRes.data,
+      signalHistory:historyRes.data??[],
+      feedEvents:feedRes.data??[],
+    };
   } catch { return { enrollments: [], events: [], profile: null, signal: null, signalHistory:[], feedEvents:[] }; }
 }
 
@@ -52,6 +68,8 @@ export default async function PortalDashboard() {
         .stat-card:hover{border-color:rgba(212,175,55,.25)!important;transform:translateY(-2px)!important;}
         .stat-card{transition:all .2s!important;}
         .portal-row:hover{background:rgba(255,255,255,.025)!important}
+        @media(max-width:900px){.dashboard-learning-grid{grid-template-columns:1fr!important}}
+        @media(max-width:680px){.dashboard-stat-grid{grid-template-columns:repeat(2,1fr)!important}}
       `}</style>
 
       {/* Header */}
@@ -86,7 +104,7 @@ export default async function PortalDashboard() {
       </div>
 
       {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'2rem' }}>
+      <div className="dashboard-stat-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'2rem' }}>
         {[
           { icon:'📚', label:'Enrolled Courses', value:String(enrollments.length), href:'/portal/courses', color:'#D4AF37' },
           { icon:'📅', label:'Upcoming Events',  value:String(events.length),      href:'/portal/events',  color:'#60A5FA' },
@@ -152,7 +170,7 @@ export default async function PortalDashboard() {
       )}
 
       {/* Courses + Events grid */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem' }}>
+      <div className="dashboard-learning-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem' }}>
         <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.06)', animation:'fadeUp .5s .38s ease forwards', opacity:0 }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'1rem 1.25rem', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
@@ -167,18 +185,29 @@ export default async function PortalDashboard() {
               <p style={{ fontSize:'.78rem', color:'#555', marginBottom:'8px' }}>No courses enrolled yet.</p>
               <Link href="/portal/courses" style={{ fontSize:'.7rem', color:'#D4AF37', textDecoration:'none' }}>Browse Academy →</Link>
             </div>
-          ) : enrollments.map((enr: any) => (
-            <div key={enr.id} className="portal-row" style={{ display:'flex', alignItems:'center', gap:'12px', padding:'.85rem 1.25rem', borderBottom:'1px solid rgba(255,255,255,.03)', cursor:'default' }}>
+          ) : enrollments.map((enr: any) => {
+            const progress=enr.lms_summary??{percent:0,completed:0,total:0,average_score:null,next_lesson_title:null,certificate_issued:false};
+            return (
+            <Link key={enr.id} href={`/portal/courses/${enr.course_id}`} className="portal-row" style={{ display:'grid', gridTemplateColumns:'36px minmax(0,1fr) auto', alignItems:'center', gap:'12px', padding:'.9rem 1.25rem', borderBottom:'1px solid rgba(255,255,255,.03)', textDecoration:'none',color:'#fff' }}>
               <div style={{ width:'36px', height:'36px', background:'linear-gradient(135deg,#0D0D0D,#1A1500)', border:'1px solid rgba(212,175,55,.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.1rem', flexShrink:0, overflow:'hidden' }}>
                 {enr.course?.logo_url ? <img src={enr.course.logo_url} alt="" style={{ width:'100%', height:'100%', objectFit:'contain' }} /> : '📈'}
               </div>
               <div style={{ minWidth:0 }}>
                 <p style={{ fontSize:'.78rem', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{enr.course?.title ?? '—'}</p>
-                <p style={{ fontSize:'.62rem', color:'#555', marginTop:'2px' }}>{enr.course?.level ?? ''}</p>
+                <p style={{ fontSize:'.57rem', color:'#666', marginTop:'3px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
+                  {progress.next_lesson_title?`Current: ${progress.next_lesson_title}`:`${progress.completed} of ${progress.total} lessons`}
+                </p>
+                <div style={{height:'3px',background:'#1B1B1B',marginTop:'7px',overflow:'hidden'}}>
+                  <div style={{height:'100%',width:`${Math.min(100,Math.max(0,progress.percent))}%`,background:'linear-gradient(90deg,#B8860B,#D4AF37)'}}/>
+                </div>
               </div>
-              <span style={{ flexShrink:0, fontSize:'.6rem', color:'#00D084', marginLeft:'auto' }}>✓</span>
-            </div>
-          ))}
+              <div style={{textAlign:'right'}}>
+                <p style={{fontFamily:'Cinzel,serif',fontSize:'.73rem',color:progress.percent>=100?'#34D399':'#D4AF37'}}>{progress.percent}%</p>
+                <p style={{fontSize:'.52rem',color:'#666',marginTop:'3px'}}>{progress.average_score===null?'NO SCORE':`${progress.average_score}% AVG`}</p>
+                {progress.certificate_issued&&<p style={{fontSize:'.5rem',color:'#34D399',marginTop:'3px'}}>CERTIFIED</p>}
+              </div>
+            </Link>
+          )})}
         </div>
 
         <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.06)', animation:'fadeUp .5s .44s ease forwards', opacity:0 }}>
