@@ -37,10 +37,12 @@ function AuthGateInner({ children }: { children: React.ReactNode }) {
     const rawReturn = searchParams.get('returnTo') ?? '/portal/dashboard';
     const returnTo  = rawReturn === '/portal' ? '/portal/dashboard' : rawReturn;
     const tab       = searchParams.get('tab') ?? 'login';
+    const notice    = searchParams.get('notice') ?? undefined;
     return (
       <AuthModal
         defaultTab={tab as 'login' | 'register'}
         returnTo={returnTo}
+        notice={notice}
       />
     );
   }

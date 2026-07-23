@@ -4,7 +4,9 @@ export type CertificatePlaceholderKey =
   | 'certificate_title'
   | 'member_name'
   | 'course_title'
-  | 'issued_date';
+  | 'issued_date'
+  | 'certificate_id'
+  | 'verification_qr';
 
 export type CertificatePlaceholderLayout = {
   x: number;
@@ -23,6 +25,8 @@ export const CERTIFICATE_PLACEHOLDER_LABELS: Record<CertificatePlaceholderKey, s
   member_name: 'Member name',
   course_title: 'Course title',
   issued_date: 'Issue date',
+  certificate_id: 'Certificate ID',
+  verification_qr: 'Validation QR code',
 };
 
 // X and Y are normalized to the certificate canvas. Y is measured from the top
@@ -32,6 +36,8 @@ export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayout = {
   member_name: {x: 0.5, y: 0.51, align: 'center', font_size: 28},
   course_title: {x: 0.5, y: 0.67, align: 'center', font_size: 20},
   issued_date: {x: 0.5, y: 0.78, align: 'center', font_size: 10},
+  certificate_id: {x: 0.5, y: 0.92, align: 'center', font_size: 9},
+  verification_qr: {x: 0.1, y: 0.84, align: 'center', font_size: 58},
 };
 
 const PLACEHOLDER_KEYS = Object.keys(
@@ -71,7 +77,11 @@ export function normalizeCertificateLayout(value: unknown): CertificateLayout {
               ? alignment
               : defaults.align,
           font_size: Math.round(
-            clamp(finiteNumber(candidate.font_size, defaults.font_size), 8, 48),
+            clamp(
+              finiteNumber(candidate.font_size, defaults.font_size),
+              key === 'verification_qr' ? 36 : 8,
+              key === 'verification_qr' ? 96 : 48,
+            ),
           ),
         },
       ];

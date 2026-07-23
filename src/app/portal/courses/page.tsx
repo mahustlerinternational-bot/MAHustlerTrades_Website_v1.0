@@ -68,7 +68,7 @@ export default async function MyCourses() {
         </p>
       </div>
 
-      {ibApproved&&<div style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 16px',marginBottom:'2rem',background:'rgba(52,211,153,.07)',border:'1px solid rgba(52,211,153,.22)',color:'#D1FAE5'}}><span style={{fontSize:'1.2rem'}}>✓</span><div><strong style={{fontFamily:'Cinzel,serif',fontSize:'.72rem',color:'#34D399'}}>VERIFIED IB COURSE BENEFIT</strong><p style={{fontSize:'.68rem',color:'#7EAA99',marginTop:'3px'}}>Your approved IB account gives you free enrollment in every available course.</p></div></div>}
+      {ibApproved&&<div style={{display:'flex',alignItems:'center',gap:'12px',padding:'14px 16px',marginBottom:'2rem',background:'rgba(52,211,153,.07)',border:'1px solid rgba(52,211,153,.22)',color:'#D1FAE5'}}><span style={{fontSize:'1.2rem'}}>✓</span><div><strong style={{fontFamily:'Cinzel,serif',fontSize:'.72rem',color:'#34D399'}}>VERIFIED ELITE COURSE BENEFIT</strong><p style={{fontSize:'.68rem',color:'#7EAA99',marginTop:'3px'}}>Your approved Elite access gives you free enrollment in every available course.</p></div></div>}
 
       {/* Enrolled */}
       {enrolled.length > 0 ? (

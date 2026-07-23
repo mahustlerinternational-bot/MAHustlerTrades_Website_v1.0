@@ -19,6 +19,7 @@ import {
   FileText,
   Film,
   FolderPlus,
+  Image as ImageIcon,
   Import,
   Layers3,
   Loader2,
@@ -38,7 +39,7 @@ import AssessmentEditorModal, {
 import CourseLmsSettingsModal from '@/components/admin/lms/CourseLmsSettingsModal';
 import {supabase} from '@/lib/supabase/client';
 import {authFetch} from '@/lib/utils/authFetch';
-import type {LmsAssessment, LmsLesson, LmsModule} from '@/types/lms';
+import type {LessonMedia, LessonMediaType, LmsAssessment, LmsLesson, LmsModule} from '@/types/lms';
 
 type BuilderCourse = {
   id: string;
@@ -72,13 +73,47 @@ type LessonDraft = {
   parent_lesson_id: string | null;
   title: string;
   content: string;
-  video_url: string;
-  video_storage_path: string | null;
-  playback_url: string | null;
+  intro_media: LessonMediaDraft;
+  outro_media: LessonMediaDraft;
   duration_minutes: string;
   is_preview: boolean;
   is_published: boolean;
 };
+
+type LessonMediaSlot = 'intro' | 'outro';
+type LessonMediaDraft = {
+  type: LessonMediaType | 'none';
+  url: string;
+  storage_path: string | null;
+  playback_url: string | null;
+};
+
+const emptyMediaDraft = (): LessonMediaDraft => ({
+  type: 'none',
+  url: '',
+  storage_path: null,
+  playback_url: null,
+});
+
+function mediaDraft(
+  media: LessonMedia | null | undefined,
+  playbackUrl: string | null | undefined,
+  legacy?: {url?: string | null; storage_path?: string | null; playback_url?: string | null},
+): LessonMediaDraft {
+  const normalized = media ?? (
+    legacy?.url || legacy?.storage_path
+      ? {type: 'video' as const, url: legacy.url ?? null, storage_path: legacy.storage_path ?? null}
+      : null
+  );
+  return normalized
+    ? {
+        type: normalized.type,
+        url: normalized.storage_path ? '' : (normalized.url ?? ''),
+        storage_path: normalized.storage_path ?? null,
+        playback_url: playbackUrl ?? legacy?.playback_url ?? normalized.url ?? null,
+      }
+    : emptyMediaDraft();
+}
 
 type AssessmentEditorState = {
   target: AssessmentTarget;
@@ -93,8 +128,11 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
   const [assessmentEditor, setAssessmentEditor] = useState<AssessmentEditorState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [uploadingSlot, setUploadingSlot] = useState<LessonMediaSlot | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<Record<LessonMediaSlot, File | null>>({
+    intro: null,
+    outro: null,
+  });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const importInput = useRef<HTMLInputElement>(null);
 
@@ -167,7 +205,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
   }
 
   function editLesson(moduleId: string, lesson?: LmsLesson, parentLessonId: string | null = null) {
-    setVideoFile(null);
+    setMediaFiles({intro: null, outro: null});
     setLessonDraft(
       lesson
         ? {
@@ -176,9 +214,16 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
             parent_lesson_id: lesson.parent_lesson_id ?? null,
             title: lesson.title,
             content: lesson.content ?? '',
-            video_url: lesson.video_storage_path ? '' : (lesson.video_url ?? ''),
-            video_storage_path: lesson.video_storage_path ?? null,
-            playback_url: lesson.playback_url ?? null,
+            intro_media: mediaDraft(
+              lesson.intro_media,
+              lesson.intro_playback_url,
+              {
+                url: lesson.video_url,
+                storage_path: lesson.video_storage_path,
+                playback_url: lesson.playback_url,
+              },
+            ),
+            outro_media: mediaDraft(lesson.outro_media, lesson.outro_playback_url),
             duration_minutes: lesson.duration_seconds
               ? String(Math.round(lesson.duration_seconds / 60))
               : '',
@@ -190,9 +235,8 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
             parent_lesson_id: parentLessonId,
             title: '',
             content: '',
-            video_url: '',
-            video_storage_path: null,
-            playback_url: null,
+            intro_media: emptyMediaDraft(),
+            outro_media: emptyMediaDraft(),
             duration_minutes: '',
             is_preview: false,
             is_published: false,
@@ -200,14 +244,15 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
     );
   }
 
-  async function uploadVideo(file: File) {
-    setUploading(true);
+  async function uploadMedia(file: File, mediaType: LessonMediaType, slot: LessonMediaSlot) {
+    setUploadingSlot(slot);
     try {
-      const prepared = await authFetch('/api/admin/lms/video-upload', {
+      const prepared = await authFetch('/api/admin/lms/media-upload', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           course_id: courseId,
+          media_type: mediaType,
           file_name: file.name,
           content_type: file.type,
           size: file.size,
@@ -224,7 +269,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
       if (uploaded.error) throw uploaded.error;
       return details.path as string;
     } finally {
-      setUploading(false);
+      setUploadingSlot(null);
     }
   }
 
@@ -232,8 +277,21 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
     if (!lessonDraft?.title.trim() || saving) return;
     setSaving(true);
     try {
-      let storagePath = lessonDraft.video_storage_path;
-      if (videoFile) storagePath = await uploadVideo(videoFile);
+      async function resolvedMedia(slot:LessonMediaSlot,draftMedia:LessonMediaDraft){
+        if(draftMedia.type==='none')return null;
+        let storagePath=draftMedia.storage_path;
+        const file=mediaFiles[slot];
+        if(file)storagePath=await uploadMedia(file,draftMedia.type,slot);
+        return {
+          type:draftMedia.type,
+          url:storagePath?null:draftMedia.url,
+          storage_path:storagePath,
+        };
+      }
+      const [introMedia,outroMedia]=await Promise.all([
+        resolvedMedia('intro',lessonDraft.intro_media),
+        resolvedMedia('outro',lessonDraft.outro_media),
+      ]);
       const payload: Record<string, unknown> = {
         module_id: lessonDraft.module_id,
         parent_lesson_id: lessonDraft.parent_lesson_id,
@@ -244,9 +302,9 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
           : null,
         is_preview: lessonDraft.is_preview,
         is_published: lessonDraft.is_published,
+        intro_media:introMedia,
+        outro_media:outroMedia,
       };
-      if (storagePath) payload.video_storage_path = storagePath;
-      else payload.video_url = lessonDraft.video_url;
       const response = await authFetch(
         lessonDraft.id ? `/api/admin/lms/lessons/${lessonDraft.id}` : '/api/admin/lms/lessons',
         {
@@ -260,7 +318,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
       const label = lessonDraft.parent_lesson_id ? 'Submodule' : 'Lesson';
       toast.success(`${label} ${lessonDraft.id ? 'updated' : 'created'}`);
       setLessonDraft(null);
-      setVideoFile(null);
+      setMediaFiles({intro:null,outro:null});
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Lesson save failed');
@@ -403,7 +461,8 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
             }
             style={finalAssessment?.is_published ? successOutlineButton : outlineButton}
           >
-            <Award size={14} /> {finalAssessment ? 'Edit Final Assessment' : 'Add Final Assessment'}
+            <Award size={14} />{' '}
+            {finalAssessment ? 'Edit Final Course Assessment' : 'Add Final Course Assessment'}
           </button>
           <button onClick={() => importInput.current?.click()} style={outlineButton}>
             <Import size={14} /> Import Text
@@ -479,7 +538,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
                         scope: 'module',
                         module_id: courseModule.id,
                         lesson_id: null,
-                        label: `${courseModule.title} — Module Assessment`,
+                        label: `Module ${moduleIndex + 1} - Module Assessment`,
                       })
                     }
                     style={moduleAssessment?.is_published ? activeQuizWideButton : quizButton}
@@ -557,7 +616,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
                                     scope: 'lesson',
                                     module_id: null,
                                     lesson_id: lesson.id,
-                                    label: `${lesson.title} — Lesson Assessment`,
+                                    label: `Lesson ${moduleIndex + 1}.${lessonIndex + 1} - Lesson Assessment`,
                                   })
                                 }
                                 onAddSubmodule={() =>
@@ -599,7 +658,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
                                           scope: 'submodule',
                                           module_id: null,
                                           lesson_id: submodule.id,
-                                          label: `${submodule.title} — Submodule Assessment`,
+                                          label: `Lesson ${moduleIndex + 1}.${lessonIndex + 1}.${submoduleIndex + 1} - Submodule Assessment`,
                                         })
                                       }
                                     />
@@ -635,7 +694,7 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
                             scope: 'module',
                             module_id: courseModule.id,
                             lesson_id: null,
-                            label: `${courseModule.title} — Module Assessment`,
+                            label: `Module ${moduleIndex + 1} - Module Assessment`,
                           })
                         }
                         style={moduleAssessment ? successOutlineButton : outlineButton}
@@ -665,14 +724,14 @@ export default function LmsBuilder({courseId}: {courseId: string}) {
         <LessonModal
           draft={lessonDraft}
           setDraft={setLessonDraft}
-          videoFile={videoFile}
-          setVideoFile={setVideoFile}
-          saving={saving || uploading}
-          uploading={uploading}
+          mediaFiles={mediaFiles}
+          setMediaFile={(slot,file)=>setMediaFiles(current=>({...current,[slot]:file}))}
+          saving={saving || Boolean(uploadingSlot)}
+          uploadingSlot={uploadingSlot}
           onSave={() => void saveLesson()}
           onClose={() => {
             setLessonDraft(null);
-            setVideoFile(null);
+            setMediaFiles({intro:null,outro:null});
           }}
         />
       )}
@@ -724,8 +783,12 @@ function LessonRow({
       <span style={{width: '25px', fontSize: '.6rem', color: '#555'}}>
         {nested ? `${index + 1}.` : `${index + 1}.`}
       </span>
-      <span style={{color: lesson.video_url || lesson.video_storage_path ? '#D4AF37' : '#777'}}>
-        {lesson.video_url || lesson.video_storage_path ? <Film size={14} /> : <FileText size={14} />}
+      <span style={{color: lesson.intro_media || lesson.outro_media || lesson.video_url || lesson.video_storage_path ? '#D4AF37' : '#777'}}>
+        {lesson.intro_media?.type==='image'||lesson.outro_media?.type==='image'
+          ? <ImageIcon size={14}/>
+          : lesson.intro_media||lesson.outro_media||lesson.video_url||lesson.video_storage_path
+            ? <Film size={14}/>
+            : <FileText size={14}/>}
       </span>
       <div style={{flex: 1, minWidth: 0}}>
         <p style={{fontSize: '.7rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
@@ -840,23 +903,22 @@ function ModuleModal({
 function LessonModal({
   draft,
   setDraft,
-  videoFile,
-  setVideoFile,
+  mediaFiles,
+  setMediaFile,
   saving,
-  uploading,
+  uploadingSlot,
   onSave,
   onClose,
 }: {
   draft: LessonDraft;
   setDraft: (value: LessonDraft) => void;
-  videoFile: File | null;
-  setVideoFile: (value: File | null) => void;
+  mediaFiles: Record<LessonMediaSlot, File | null>;
+  setMediaFile: (slot: LessonMediaSlot, value: File | null) => void;
   saving: boolean;
-  uploading: boolean;
+  uploadingSlot: LessonMediaSlot | null;
   onSave: () => void;
   onClose: () => void;
 }) {
-  const hasStored = Boolean(draft.video_storage_path);
   const kind = draft.parent_lesson_id ? 'Submodule' : 'Lesson';
   return (
     <Modal title={draft.id ? `Edit ${kind}` : `New ${kind}`} onClose={onClose} wide>
@@ -899,79 +961,27 @@ function LessonModal({
           }}
         />
       </Field>
-      <div style={videoPanel}>
-        <p style={{fontSize: '.58rem', letterSpacing: '2px', color: '#D4AF37', marginBottom: '9px'}}>
-          VIDEO (OPTIONAL)
-        </p>
-        <Field label="External video link">
-          <input
-            value={draft.video_url}
-            onChange={event => {
-              setVideoFile(null);
-              setDraft({
-                ...draft,
-                video_url: event.target.value,
-                video_storage_path: null,
-              });
-            }}
-            placeholder="YouTube, Vimeo, Bunny, Mux, or direct MP4 URL"
-            style={inputStyle}
-          />
-        </Field>
-        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginTop: '9px', flexWrap: 'wrap'}}>
-          <label style={uploadButton}>
-            <Upload size={13} />
-            {videoFile ? videoFile.name : hasStored ? 'Replace uploaded video' : 'Upload video'}
-            <input
-              type="file"
-              accept="video/mp4,video/webm,video/ogg,video/quicktime"
-              hidden
-              onChange={event => {
-                const file = event.target.files?.[0] ?? null;
-                if (file && file.size > 50 * 1024 * 1024) {
-                  toast.error(
-                    'Direct uploads must be 50 MB or smaller. Use the external video link for larger files.',
-                  );
-                  event.target.value = '';
-                  return;
-                }
-                setVideoFile(file);
-                if (file) setDraft({...draft, video_url: ''});
-              }}
-            />
-          </label>
-          {(hasStored || videoFile) && (
-            <button
-              onClick={() => {
-                setVideoFile(null);
-                setDraft({
-                  ...draft,
-                  video_storage_path: null,
-                  playback_url: null,
-                });
-              }}
-              style={smallTextButton}
-            >
-              Remove video
-            </button>
-          )}
-          {uploading && (
-            <span style={{fontSize: '.62rem', color: '#D4AF37'}}>
-              Uploading directly to private storage…
-            </span>
-          )}
-        </div>
-        <p style={{fontSize: '.56rem', color: '#555', marginTop: '8px'}}>
-          Private direct uploads: up to 50 MB. Use a streaming link for larger videos.
-        </p>
-        {draft.playback_url && hasStored && !videoFile && (
-          <video
-            controls
-            preload="metadata"
-            src={draft.playback_url}
-            style={{width: '100%', maxHeight: '220px', background: '#000', marginTop: '10px'}}
-          />
-        )}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(330px,100%),1fr))',gap:'12px'}}>
+        <LessonMediaEditor
+          slot="intro"
+          title="Lesson Introduction"
+          description="Displayed before the lesson content."
+          media={draft.intro_media}
+          file={mediaFiles.intro}
+          uploading={uploadingSlot==='intro'}
+          onFile={file=>setMediaFile('intro',file)}
+          onChange={intro_media=>setDraft({...draft,intro_media})}
+        />
+        <LessonMediaEditor
+          slot="outro"
+          title="Lesson Outro"
+          description="Displayed after the lesson content and before assessments."
+          media={draft.outro_media}
+          file={mediaFiles.outro}
+          uploading={uploadingSlot==='outro'}
+          onFile={file=>setMediaFile('outro',file)}
+          onChange={outro_media=>setDraft({...draft,outro_media})}
+        />
       </div>
       <div style={{display: 'flex', gap: '18px', flexWrap: 'wrap'}}>
         <CheckField
@@ -987,6 +997,139 @@ function LessonModal({
       </div>
       <ModalActions saving={saving} onSave={onSave} onClose={onClose} />
     </Modal>
+  );
+}
+
+function LessonMediaEditor({
+  slot,
+  title,
+  description,
+  media,
+  file,
+  uploading,
+  onFile,
+  onChange,
+}: {
+  slot: LessonMediaSlot;
+  title: string;
+  description: string;
+  media: LessonMediaDraft;
+  file: File | null;
+  uploading: boolean;
+  onFile: (file: File | null) => void;
+  onChange: (media: LessonMediaDraft) => void;
+}) {
+  const hasStored = Boolean(media.storage_path);
+  const preview = media.playback_url ?? media.url;
+  const selectType = (type: LessonMediaDraft['type']) => {
+    onFile(null);
+    onChange(type === 'none' ? emptyMediaDraft() : {...emptyMediaDraft(), type});
+  };
+
+  return (
+    <section style={videoPanel}>
+      <div style={{display:'flex',alignItems:'flex-start',gap:'9px',marginBottom:'11px'}}>
+        {media.type==='image'
+          ? <ImageIcon size={18} color="#D4AF37"/>
+          : <Film size={18} color={media.type==='video'?'#D4AF37':'#555'}/>}
+        <div>
+          <p style={{fontSize:'.58rem',letterSpacing:'2px',color:'#D4AF37'}}>{title.toUpperCase()}</p>
+          <p style={{fontSize:'.55rem',color:'#555',marginTop:'3px'}}>{description}</p>
+        </div>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px',marginBottom:'11px'}}>
+        {(['none','video','image'] as const).map(type=>(
+          <button
+            type="button"
+            key={type}
+            onClick={()=>selectType(type)}
+            style={{
+              ...mediaTypeButton,
+              color:media.type===type?'#050505':'#777',
+              background:media.type===type?'#D4AF37':'#0B0B0B',
+              borderColor:media.type===type?'#D4AF37':'rgba(255,255,255,.09)',
+            }}
+          >
+            {type==='none'?'No Media':type==='video'?'Video':'Image'}
+          </button>
+        ))}
+      </div>
+
+      {media.type==='none' ? (
+        <div style={adminMediaPlaceholder}>
+          <span>{slot==='intro'?'INTRODUCTION':'OUTRO'} PLACEHOLDER</span>
+          <small>Select Video or Image to add media.</small>
+        </div>
+      ) : (
+        <>
+          <Field label={`External ${media.type} link`}>
+            <input
+              value={media.url}
+              onChange={event=>{
+                onFile(null);
+                onChange({...media,url:event.target.value,storage_path:null,playback_url:event.target.value||null});
+              }}
+              placeholder={media.type==='video'
+                ? 'YouTube, Vimeo, streaming, or direct video URL'
+                : 'Direct HTTPS image URL'}
+              style={inputStyle}
+            />
+          </Field>
+          <div style={{display:'flex',alignItems:'center',gap:'9px',marginTop:'9px',flexWrap:'wrap'}}>
+            <label style={uploadButton}>
+              <Upload size={13}/>
+              {file?.name ?? (hasStored?`Replace ${media.type}`:`Upload ${media.type}`)}
+              <input
+                type="file"
+                accept={media.type==='video'
+                  ? 'video/mp4,video/webm,video/ogg,video/quicktime'
+                  : 'image/png,image/jpeg,image/webp,image/gif'}
+                hidden
+                onChange={event=>{
+                  const selected=event.target.files?.[0]??null;
+                  const maximum=media.type==='video'?50*1024*1024:10*1024*1024;
+                  if(selected&&selected.size>maximum){
+                    toast.error(media.type==='video'
+                      ? 'Direct videos must be 50 MB or smaller'
+                      : 'Lesson images must be 10 MB or smaller');
+                    event.target.value='';
+                    return;
+                  }
+                  onFile(selected);
+                  if(selected)onChange({...media,url:''});
+                }}
+              />
+            </label>
+            {(hasStored||file||media.url)&&(
+              <button
+                type="button"
+                onClick={()=>selectType('none')}
+                style={smallTextButton}
+              >
+                Remove {media.type}
+              </button>
+            )}
+            {uploading&&(
+              <span style={{fontSize:'.58rem',color:'#D4AF37'}}>
+                Uploading private {media.type}…
+              </span>
+            )}
+          </div>
+          <p style={{fontSize:'.53rem',color:'#555',marginTop:'7px'}}>
+            {media.type==='video'
+              ? 'Private uploads up to 50 MB; use a streaming link for larger videos.'
+              : 'PNG, JPG, WebP, or GIF uploads up to 10 MB.'}
+          </p>
+          {preview&&!file&&media.type==='image'&&(
+            <img src={preview} alt={`${title} preview`} style={adminMediaPreview}/>
+          )}
+          {preview&&!file&&media.type==='video'&&hasStored&&(
+            <video controls preload="metadata" src={preview} style={adminMediaPreview}/>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1104,5 +1247,8 @@ const modalHeader: CSSProperties = {display: 'flex', justifyContent: 'space-betw
 const labelStyle: CSSProperties = {display: 'block', fontSize: '.55rem', letterSpacing: '1.7px', textTransform: 'uppercase', color: '#666', marginBottom: '6px'};
 const inputStyle: CSSProperties = {width: '100%', boxSizing: 'border-box', background: '#080808', border: '1px solid rgba(255,255,255,.1)', color: '#fff', padding: '10px 11px', fontSize: '.72rem', outline: 'none'};
 const videoPanel: CSSProperties = {padding: '12px', background: 'rgba(212,175,55,.035)', border: '1px solid rgba(212,175,55,.12)'};
+const mediaTypeButton: CSSProperties = {padding:'7px 5px',border:'1px solid',fontSize:'.55rem',textTransform:'uppercase',letterSpacing:'.8px',cursor:'pointer'};
+const adminMediaPlaceholder: CSSProperties = {minHeight:'94px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'6px',border:'1px dashed rgba(255,255,255,.1)',background:'#090909',color:'#555',fontSize:'.56rem',letterSpacing:'1.5px',textAlign:'center'};
+const adminMediaPreview: CSSProperties = {width:'100%',maxHeight:'210px',objectFit:'contain',background:'#050505',marginTop:'10px',border:'1px solid rgba(255,255,255,.07)'};
 const uploadButton: CSSProperties = {display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 11px', background: '#151515', border: '1px solid rgba(255,255,255,.1)', fontSize: '.63rem', color: '#AAA', cursor: 'pointer', maxWidth: '100%', overflow: 'hidden'};
 const smallTextButton: CSSProperties = {background: 'none', border: 0, color: '#FF6B78', fontSize: '.6rem', cursor: 'pointer'};

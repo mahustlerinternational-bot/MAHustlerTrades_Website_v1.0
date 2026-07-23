@@ -30,7 +30,7 @@ const DEFAULT_GUIDE = {
   min_deposit: 500,
   steps: [
     { title: 'Create Your Broker Account', body: 'Open a live trading account with our approved broker partner using your exclusive referral link.' },
-    { title: 'Fund Your Account', body: 'Deposit the minimum required amount ($500+) to activate your trading account and qualify for IB membership.' },
+    { title: 'Fund Your Account', body: 'Deposit the minimum required amount ($500+) to activate your trading account and qualify for Elite membership.' },
     { title: 'Submit Your Details', body: 'Enter your broker name and account number. Our team will verify your account within 24-48 hours.' },
     { title: 'Access Granted', body: 'Once approved, you receive full Elite membership access at no monthly cost, as long as your account remains active.' },
   ],
@@ -50,9 +50,9 @@ export default async function IBPortalPage() {
 
       <div style={{ marginBottom:'2.5rem', maxWidth:'680px', animation:'fadeUp .5s ease forwards' }}>
         <p style={{ fontFamily:'Cinzel,serif', fontSize:'.58rem', letterSpacing:'5px', textTransform:'uppercase', color:'#D4AF37', marginBottom:'8px' }}>Alternative Access</p>
-        <h1 style={{ fontFamily:'Cinzel,serif', fontSize:'2rem', fontWeight:900, marginBottom:'10px' }}>IB Elite Registration</h1>
+        <h1 style={{ fontFamily:'Cinzel,serif', fontSize:'2rem', fontWeight:900, marginBottom:'10px' }}>Elite Access Registration</h1>
         <p style={{ fontSize:'.82rem', color:'#888', lineHeight:1.75, fontWeight:300 }}>
-          Get full Elite membership at <strong style={{color:'#D4AF37',fontWeight:600}}>zero monthly cost</strong> by opening a live trading account with our approved broker partner through your dedicated IB referral link.
+          Get full Elite membership at <strong style={{color:'#D4AF37',fontWeight:600}}>zero monthly cost</strong> by opening a live trading account with our approved broker partner through your dedicated referral link.
         </p>
       </div>
 

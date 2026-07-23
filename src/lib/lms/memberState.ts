@@ -2,6 +2,7 @@ import 'server-only';
 
 import {supabaseAdmin} from '@/lib/supabase/server';
 import {signedVideoUrl} from '@/lib/lms/media';
+import {lessonMediaFromValue} from '@/lib/lms/lessonMedia';
 import type {
   CourseProgressSummary,
   LmsAssessment,
@@ -118,7 +119,7 @@ export async function getMemberLmsState(
   const lessonResult = moduleIds.length
     ? await supabaseAdmin
         .from('course_lessons')
-        .select('id,module_id,parent_lesson_id,title,content,video_url,video_storage_path,duration_seconds,sort_order,is_preview,is_published')
+        .select('id,module_id,parent_lesson_id,title,content,video_url,video_storage_path,intro_media,outro_media,duration_seconds,sort_order,is_preview,is_published')
         .in('module_id', moduleIds)
         .eq('is_published', true)
         .order('sort_order')
@@ -142,7 +143,7 @@ export async function getMemberLmsState(
       .eq('is_published', true),
     supabaseAdmin
       .from('course_certificates')
-      .select('certificate_number,issued_at')
+      .select('certificate_number,verification_code,issued_at')
       .eq('course_id', courseId)
       .eq('user_id', userId)
       .maybeSingle(),
@@ -199,21 +200,30 @@ export async function getMemberLmsState(
   const finalAssessment = assessments.find(assessment => assessment.scope === 'final') ?? null;
 
   const memberLessonRows = await Promise.all(
-    lessons.map(async lesson => ({
-      ...lesson,
-      video_storage_path: undefined,
-      playback_url:
-        includePlayback && lesson.video_storage_path
-          ? await signedVideoUrl(lesson.video_storage_path)
-          : includePlayback
-            ? lesson.video_url
-            : null,
-      progress: progressByLesson.get(lesson.id) ?? null,
-      assessment: assessmentByLesson.get(lesson.id) ?? null,
-      submodules: [] as LmsLesson[],
-      locked: false,
-      lock_reason: null,
-    })),
+    lessons.map(async lesson => {
+      const introMedia=lessonMediaFromValue(lesson.intro_media,lesson.video_url,lesson.video_storage_path);
+      const outroMedia=lessonMediaFromValue(lesson.outro_media);
+      const [introPlayback,outroPlayback]=includePlayback
+        ? await Promise.all([
+            introMedia?.storage_path?signedVideoUrl(introMedia.storage_path):Promise.resolve(introMedia?.url??null),
+            outroMedia?.storage_path?signedVideoUrl(outroMedia.storage_path):Promise.resolve(outroMedia?.url??null),
+          ])
+        : [null,null];
+      return {
+        ...lesson,
+        video_storage_path: undefined,
+        intro_media:introMedia?{...introMedia,storage_path:undefined}:null,
+        outro_media:outroMedia?{...outroMedia,storage_path:undefined}:null,
+        intro_playback_url:introPlayback,
+        outro_playback_url:outroPlayback,
+        playback_url:introMedia?.type==='video'?introPlayback:null,
+        progress:progressByLesson.get(lesson.id)??null,
+        assessment:assessmentByLesson.get(lesson.id)??null,
+        submodules:[] as LmsLesson[],
+        locked:false,
+        lock_reason:null,
+      };
+    }),
   );
   const modulePayload: LmsModule[] = modules.map(module => {
     const moduleLessons = memberLessonRows
@@ -344,6 +354,7 @@ export async function getMemberLmsState(
       eligible: certificateEligible,
       issued: Boolean(certificateResult.data),
       certificate_number: certificateResult.data?.certificate_number ?? null,
+      verification_code: certificateResult.data?.verification_code ?? null,
       issued_at: certificateResult.data?.issued_at ?? null,
       has_template: Boolean(courseResult.data.certificate_template_path),
     },

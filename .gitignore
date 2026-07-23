@@ -15,6 +15,7 @@ out/
 .cache/
 dist/
 build/
+supabase/.temp/
 
 # Logs
 npm-debug.log*

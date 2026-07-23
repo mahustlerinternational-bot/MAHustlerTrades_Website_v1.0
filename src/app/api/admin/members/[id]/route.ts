@@ -39,9 +39,11 @@ export async function PATCH(req: NextRequest,{ params }:{ params:Promise<{ id:st
   if (action === 'review_ib') {
     const { status, admin_notes } = body;
     if (!['approved','rejected'].includes(status)) return NextResponse.json({ error:'Invalid status' },{ status:400 });
+    const targetProfile=await supabaseAdmin.from('profiles').select('role').eq('id',id).maybeSingle();
+    if(targetProfile.error)return NextResponse.json({error:targetProfile.error.message},{status:500});
     await supabaseAdmin.from('ib_registrations').update({ status, admin_notes:admin_notes??null, reviewed_at:new Date().toISOString(), reviewed_by:s.userId }).eq('user_id',id);
     const pu: Record<string,string> = { ib_status: status==='approved'?'active':'rejected' };
-    if (status==='approved') pu.role='ib_member';
+    if (status==='approved'&&targetProfile.data?.role!=='admin') pu.role='ib_member';
     const { error } = await supabaseAdmin.from('profiles').update(pu).eq('id',id);
     if (error) return NextResponse.json({ error:error.message },{ status:500 });
     let community:Awaited<ReturnType<typeof provisionCommunityInvites>>=[];

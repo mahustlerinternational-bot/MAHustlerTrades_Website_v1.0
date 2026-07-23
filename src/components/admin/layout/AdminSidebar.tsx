@@ -10,6 +10,7 @@ const NAV = [
   { label: 'Members',         href: '/admin/members',           emoji: '👥' },
   { label: 'Membership',      href: '/admin/packages',          emoji: '💳' },
   { label: 'Courses',         href: '/admin/courses',           emoji: '📚' },
+  { label: 'Elite Vault',     href: '/admin/vault',             emoji: '🔐' },
   { label: 'Coupons',         href: '/admin/coupons',           emoji: '🏷️' },
   { label: 'Events',          href: '/admin/events',            emoji: '📅' },
   { label: 'Quant AI',        href: '/admin/quant',             emoji: '⚡' },

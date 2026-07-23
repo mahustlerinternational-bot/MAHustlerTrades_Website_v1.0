@@ -297,7 +297,7 @@ export default function HomePage() {
             Join the Elite
           </Link>
           <Link href="/portal/ib" style={{ background: 'transparent', color: '#D4AF37', textDecoration: 'none', border: '1px solid rgba(212,175,55,.35)', padding: '15px 40px', fontFamily: 'Cinzel,serif', fontSize: '.8rem', fontWeight: 600, letterSpacing: '2.5px', textTransform: 'uppercase' }}>
-            Free via IB Access
+            Free via Elite Access
           </Link>
         </div>
       </section>
@@ -311,7 +311,7 @@ export default function HomePage() {
           </div>
           {[
             { heading: 'Platform', links: [['Academy', '/academy'], ['Quant AI', '/quant-ai'], ['Events', '/events'], ['Members', '/portal/dashboard']] },
-            { heading: 'Portal', links: [['Login', '/portal'], ['My Courses', '/portal/courses'], ['My Events', '/portal/events'], ['IB Access', '/portal/ib']] },
+            { heading: 'Portal', links: [['Login', '/portal'], ['My Courses', '/portal/courses'], ['My Events', '/portal/events'], ['Elite Access', '/portal/ib']] },
             { heading: 'Admin', links: [['Dashboard', '/admin/dashboard'], ['Members', '/admin/members'], ['Courses', '/admin/courses'], ['Settings', '/admin/settings']] },
           ].map(col => (
             <div key={col.heading}>

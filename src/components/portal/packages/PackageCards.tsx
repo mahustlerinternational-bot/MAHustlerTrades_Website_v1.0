@@ -122,13 +122,13 @@ export default function PackageCards({ packages, currentPackageId }: Props) {
         })}
       </div>
 
-      {/* IB Banner */}
+      {/* Elite Access banner */}
       <div style={{ background:'rgba(212,175,55,0.04)', border:'1px solid rgba(212,175,55,0.2)', padding:'1.5rem 2rem', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'1rem', marginBottom:'1rem' }}>
         <div>
           <p style={{ fontFamily:'Cinzel,serif', fontSize:'.85rem', fontWeight:700, color:'#D4AF37', marginBottom:'4px' }}>💡 Get Elite Access for Free</p>
-          <p style={{ fontSize:'.78rem', color:'#888', fontWeight:300 }}>Open a live trading account via our IB referral link and get full Elite membership at zero monthly cost except the &quot;ELITE LIFETIME ACCESS&quot;.</p>
+          <p style={{ fontSize:'.78rem', color:'#888', fontWeight:300 }}>Open a live trading account via our approved broker referral link and get full Elite membership at zero monthly cost except the &quot;ELITE LIFETIME ACCESS&quot;.</p>
         </div>
-        <a href="/portal/ib" style={{ background:'linear-gradient(135deg,#B8860B,#D4AF37)', color:'#000', textDecoration:'none', padding:'11px 24px', fontFamily:'Cinzel,serif', fontSize:'.7rem', fontWeight:700, letterSpacing:'2px', textTransform:'uppercase', flexShrink:0, whiteSpace:'nowrap' }}>Apply via IB →</a>
+        <a href="/portal/ib" style={{ background:'linear-gradient(135deg,#B8860B,#D4AF37)', color:'#000', textDecoration:'none', padding:'11px 24px', fontFamily:'Cinzel,serif', fontSize:'.7rem', fontWeight:700, letterSpacing:'2px', textTransform:'uppercase', flexShrink:0, whiteSpace:'nowrap' }}>Apply for Elite Access →</a>
       </div>
 
       {/* Ziina note */}

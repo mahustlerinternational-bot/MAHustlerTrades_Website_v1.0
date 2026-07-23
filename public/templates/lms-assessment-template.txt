@@ -1,0 +1,36 @@
+TITLE: Risk Management Assessment
+DESCRIPTION: Read every question carefully and select the best answer. This same template can be imported into a lesson, submodule, module, or final assessment.
+PASSING SCORE: 75
+MAX ATTEMPTS: 3
+TIME LIMIT MINUTES: 20
+REQUIRED: true
+RANDOMIZE QUESTIONS: true
+PUBLISHED: false
+
+## Question 1
+TYPE: single_choice
+POINTS: 1
+PROMPT: What is the primary purpose of a stop loss?
+- [x] To limit the predefined risk if the trade moves against the position
+- [ ] To guarantee that every trade closes in profit
+- [ ] To increase the position size automatically
+- [ ] To remove all market volatility
+EXPLANATION: A stop loss helps enforce the predefined risk boundary. It cannot guarantee a profit or remove market volatility.
+
+## Question 2
+TYPE: multiple_choice
+POINTS: 2
+PROMPT: Which two controls directly support disciplined position risk?
+- [x] Predetermined position sizing
+- [x] A defined invalidation level
+- [ ] Increasing risk after a loss
+- [ ] Entering without a trading plan
+EXPLANATION: Position sizing and a defined invalidation level establish the amount at risk before the trade is opened.
+
+## Question 3
+TYPE: true_false
+POINTS: 1
+PROMPT: A trader should increase risk immediately after a losing trade to recover the loss.
+- [ ] True
+- [x] False
+EXPLANATION: Recovery trading increases emotional and account risk. Risk limits should remain consistent with the approved trading plan.

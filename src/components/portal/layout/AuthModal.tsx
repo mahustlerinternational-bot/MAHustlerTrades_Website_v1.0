@@ -23,7 +23,11 @@ const registerSchema = z.object({
 type LoginForm    = z.infer<typeof loginSchema>;
 type RegisterForm = z.infer<typeof registerSchema>;
 
-interface Props { defaultTab: 'login' | 'register'; returnTo: string; }
+interface Props {
+  defaultTab: 'login' | 'register';
+  returnTo: string;
+  notice?: string;
+}
 
 function getErrorMessage(value: unknown, fallback: string) {
   if (typeof value === 'string' && value.trim()) return value;
@@ -42,7 +46,7 @@ const iS: React.CSSProperties = {
   fontFamily:'inherit', transition:'border-color .25s, background .25s', boxSizing:'border-box',
 };
 
-export default function AuthModal({ defaultTab, returnTo }: Props) {
+export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
   const router    = useRouter();
   const { setUser } = useAuthStore();
   const [tab, setTab]       = useState<'login'|'register'>(defaultTab);
@@ -148,6 +152,13 @@ export default function AuthModal({ defaultTab, returnTo }: Props) {
           </div>
 
           <div style={{ padding:'2rem' }}>
+            {notice === 'admin-session' && (
+              <div style={{ marginBottom:'1.2rem', padding:'11px 13px', background:'rgba(212,175,55,.06)', border:'1px solid rgba(212,175,55,.22)', color:'#C8AA55', fontSize:'.68rem', lineHeight:1.6 }}>
+                Your browser switched to a member session. Sign in again with your administrator
+                account to continue. Use a separate browser or private window when testing admin
+                and member accounts at the same time.
+              </div>
+            )}
             {/* ── Login ── */}
             {tab === 'login' && (
               <form onSubmit={loginForm.handleSubmit(onLogin)} style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
@@ -231,7 +242,7 @@ export default function AuthModal({ defaultTab, returnTo }: Props) {
             <div style={{ marginTop:'1.5rem', paddingTop:'1.25rem', borderTop:'1px solid rgba(255,255,255,.04)', textAlign:'center' }}>
               <p style={{ fontSize:'.68rem', color:'#444' }}>
                 Get access without a subscription via{' '}
-                <a href="/portal/ib" style={{ color:'#D4AF37', textDecoration:'none' }}>IB Elite Registration →</a>
+                <a href="/portal/ib" style={{ color:'#D4AF37', textDecoration:'none' }}>Elite Access Registration →</a>
               </p>
             </div>
           </div>

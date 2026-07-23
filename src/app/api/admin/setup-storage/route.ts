@@ -14,6 +14,7 @@ const REQUIRED_BUCKETS = [
   { id: 'course-assets', public: true, fileSizeLimit: 10 * 1024 * 1024 }, // 10MB
   { id: 'support-attachments', public: false, fileSizeLimit: 10 * 1024 * 1024 }, // 10MB, signed links only
   { id: 'course-media', public: false, fileSizeLimit: 50 * 1024 * 1024 }, // Supabase default project cap
+  { id: 'elite-vault',  public: false, fileSizeLimit: 50 * 1024 * 1024 }, // private member downloads
 ];
 
 export async function POST(req: NextRequest) {

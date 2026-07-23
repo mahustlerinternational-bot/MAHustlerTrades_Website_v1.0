@@ -1,9 +1,17 @@
 'use client';
 
-import {useMemo, useState, type CSSProperties} from 'react';
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+} from 'react';
 import {
   CheckCircle2,
   ClipboardCheck,
+  Download,
+  FileUp,
   Loader2,
   Plus,
   Save,
@@ -12,6 +20,7 @@ import {
 } from 'lucide-react';
 import {toast} from 'sonner';
 
+import {parseAssessmentText} from '@/lib/lms/importAssessmentText';
 import {authFetch} from '@/lib/utils/authFetch';
 import type {
   AssessmentScope,
@@ -97,7 +106,7 @@ function fromQuestion(question: LmsQuestion): QuestionDraft {
 
 function initialDraft(existing: LmsAssessment | null, target: AssessmentTarget): Draft {
   return {
-    title: existing?.title ?? `${target.label} Assessment`,
+    title: existing?.title ?? target.label,
     description: existing?.description ?? '',
     passing_score: String(existing?.passing_score ?? 70),
     max_attempts: existing?.max_attempts ? String(existing.max_attempts) : '',
@@ -124,6 +133,7 @@ export default function AssessmentEditorModal({
 }) {
   const [draft, setDraft] = useState(() => initialDraft(existing, target));
   const [saving, setSaving] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const totalPoints = useMemo(
     () => draft.questions.reduce((total, question) => total + (Number(question.points) || 0), 0),
     [draft.questions],
@@ -200,6 +210,68 @@ export default function AssessmentEditorModal({
       options: question.options.filter(option => option.id !== optionId),
       correct_answer: question.correct_answer.filter(id => id !== optionId),
     });
+  }
+
+  async function importAssessment(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      toast.error('Assessment text files must be 1 MB or smaller');
+      return;
+    }
+
+    try {
+      const imported = parseAssessmentText(
+        await file.text(),
+        target.label,
+      );
+      const containsWork = draft.questions.some(
+        question =>
+          question.prompt.trim() ||
+          question.options.some(option => option.text.trim()) ||
+          question.correct_answer.length,
+      );
+      if (
+        containsWork &&
+        !confirm(
+          `Replace the current assessment settings and ${draft.questions.length} question${draft.questions.length === 1 ? '' : 's'} with “${file.name}”?`,
+        )
+      ) {
+        return;
+      }
+
+      setDraft({
+        title: imported.title,
+        description: imported.description,
+        passing_score: String(imported.passing_score),
+        max_attempts:
+          imported.max_attempts === null ? '' : String(imported.max_attempts),
+        time_limit_minutes:
+          imported.time_limit_minutes === null
+            ? ''
+            : String(imported.time_limit_minutes),
+        is_required: imported.is_required,
+        is_published: imported.is_published,
+        randomize_questions: imported.randomize_questions,
+        questions: imported.questions.map(question => ({
+          client_id: identifier(),
+          prompt: question.prompt,
+          question_type: question.question_type,
+          options: question.options,
+          correct_answer: question.correct_answer,
+          explanation: question.explanation,
+          points: String(question.points),
+        })),
+      });
+      toast.success(
+        `Imported ${imported.questions.length} assessment question${imported.questions.length === 1 ? '' : 's'}`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Assessment text import failed',
+      );
+    }
   }
 
   async function save() {
@@ -360,7 +432,40 @@ export default function AssessmentEditorModal({
             />
           </div>
 
-          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px'}}>
+          <div style={importPanel}>
+            <FileUp size={20} color="#D4AF37" />
+            <div style={{flex: 1, minWidth: '220px'}}>
+              <p style={eyebrow}>ASSESSMENT TEXT IMPORT</p>
+              <p style={{fontSize: '.6rem', color: '#666', lineHeight: 1.55, marginTop: '4px'}}>
+                Import the template into this {target.scope === 'final' ? 'final assessment' : 'assessment'}.
+                The target lesson/module stays unchanged; imported settings and questions remain
+                editable before saving.
+              </p>
+            </div>
+            <input
+              ref={importInput}
+              type="file"
+              accept=".txt,.md,.markdown,text/plain,text/markdown"
+              hidden
+              onChange={event => void importAssessment(event)}
+            />
+            <a
+              href="/templates/lms-assessment-template.txt"
+              download
+              style={{...outlineButton, textDecoration: 'none'}}
+            >
+              <Download size={13} /> Download Template
+            </a>
+            <button
+              type="button"
+              onClick={() => importInput.current?.click()}
+              style={goldOutlineButton}
+            >
+              <FileUp size={13} /> Import TXT
+            </button>
+          </div>
+
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap'}}>
             <div>
               <p style={eyebrow}>QUESTION BUILDER</p>
               <p style={{fontSize: '.58rem', color: '#555', marginTop: '4px'}}>
@@ -522,6 +627,7 @@ const eyebrow: CSSProperties = {fontFamily: 'Cinzel,serif', fontSize: '.54rem', 
 const label: CSSProperties = {display: 'block', fontSize: '.53rem', letterSpacing: '1.6px', textTransform: 'uppercase', color: '#666', marginBottom: '6px'};
 const input: CSSProperties = {width: '100%', boxSizing: 'border-box', background: '#080808', border: '1px solid rgba(255,255,255,.1)', color: '#fff', padding: '10px 11px', fontSize: '.7rem', outline: 'none'};
 const introPanel: CSSProperties = {display: 'flex', alignItems: 'flex-start', gap: '11px', padding: '12px 14px', border: '1px solid rgba(212,175,55,.15)', background: 'rgba(212,175,55,.04)'};
+const importPanel: CSSProperties = {display: 'flex', alignItems: 'center', gap: '11px', padding: '12px 14px', border: '1px dashed rgba(212,175,55,.22)', background: 'rgba(212,175,55,.025)', flexWrap: 'wrap'};
 const questionCard: CSSProperties = {background: '#0A0A0A', border: '1px solid rgba(255,255,255,.075)'};
 const questionHeader: CSSProperties = {display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 11px', borderBottom: '1px solid rgba(255,255,255,.055)', background: 'rgba(255,255,255,.018)'};
 const questionNumber: CSSProperties = {fontFamily: 'JetBrains Mono,monospace', fontSize: '.62rem', color: '#D4AF37', minWidth: '25px'};
@@ -529,6 +635,7 @@ const optionRow: CSSProperties = {display: 'grid', gridTemplateColumns: '18px mi
 const iconButton: CSSProperties = {width: '30px', height: '30px', display: 'grid', placeItems: 'center', background: 'transparent', border: '1px solid rgba(255,255,255,.08)', color: '#777', cursor: 'pointer'};
 const smallIcon: CSSProperties = {...iconButton, width: '27px', height: '27px'};
 const outlineButton: CSSProperties = {display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px', background: '#111', color: '#999', border: '1px solid rgba(255,255,255,.1)', padding: '9px 13px', fontSize: '.63rem', cursor: 'pointer'};
+const goldOutlineButton: CSSProperties = {...outlineButton, color: '#D4AF37', borderColor: 'rgba(212,175,55,.3)', background: 'rgba(212,175,55,.045)'};
 const goldButton: CSSProperties = {display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px', background: 'linear-gradient(135deg,#B8860B,#D4AF37)', color: '#000', border: 0, padding: '10px 15px', fontSize: '.65rem', fontWeight: 700, fontFamily: 'Cinzel,serif', cursor: 'pointer'};
 const dangerButton: CSSProperties = {display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 10px', background: 'rgba(255,71,87,.06)', border: '1px solid rgba(255,71,87,.18)', color: '#FF6B78', fontSize: '.6rem', cursor: 'pointer'};
 const smallTextButton: CSSProperties = {justifySelf: 'start', background: 'none', border: 0, color: '#D4AF37', fontSize: '.6rem', cursor: 'pointer', padding: '3px 0'};

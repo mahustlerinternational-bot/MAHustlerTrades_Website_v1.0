@@ -242,6 +242,10 @@ try {
   assert.equal(settings.status, 200, JSON.stringify(settings.body));
   assert.equal(settings.body.certificate_layout.member_name.x, 0.44);
   assert.equal(settings.body.certificate_layout.member_name.align, 'left');
+  assert.equal(settings.body.certificate_layout.certificate_id.y, 0.92);
+  assert.equal(settings.body.certificate_layout.certificate_id.align, 'center');
+  assert.equal(settings.body.certificate_layout.verification_qr.y, 0.84);
+  assert.equal(settings.body.certificate_layout.verification_qr.font_size, 58);
 
   const templateDocument = await PDFDocument.create();
   templateDocument.addPage([842, 595]);
@@ -324,13 +328,51 @@ try {
   assert.equal(finalResult.certificate_issued, true);
   const issuedCertificate = await adminClient
     .from('course_certificates')
-    .select('metadata')
+    .select('certificate_number,verification_code,metadata')
     .eq('course_id', courseId)
     .eq('user_id', member.id)
     .single();
   if (issuedCertificate.error) throw new Error(issuedCertificate.error.message);
   assert.equal(issuedCertificate.data.metadata.certificate_layout.member_name.x, 0.44);
   assert.equal(issuedCertificate.data.metadata.certificate_layout.issued_date.align, 'right');
+  assert.equal(issuedCertificate.data.metadata.certificate_layout.certificate_id.y, 0.92);
+  assert.equal(issuedCertificate.data.metadata.certificate_layout.verification_qr.x, 0.1);
+
+  const publicVerification = await api(
+    `/api/certificates/verify/${issuedCertificate.data.verification_code}`,
+    null,
+  );
+  assert.equal(publicVerification.status, 200, JSON.stringify(publicVerification.body));
+  assert.equal(publicVerification.body.valid, true);
+  assert.equal(
+    publicVerification.body.certificate_number,
+    issuedCertificate.data.certificate_number,
+  );
+  assert.equal(publicVerification.body.member_name, 'LMS Assessment member');
+  const invalidVerification = await api('/api/certificates/verify/NOTAREALCODE1234', null);
+  assert.equal(invalidVerification.status, 404);
+  assert.equal(invalidVerification.body.valid, false);
+  const verificationPage = await api(
+    `/certificate/verify/${issuedCertificate.data.verification_code}`,
+    null,
+  );
+  assert.equal(verificationPage.status, 200);
+  assert.match(verificationPage.body, /Verified &amp; Authentic/);
+
+  const modifiedSettings = await api(`/api/admin/lms/courses/${courseId}`, admin.token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      certificate_title: 'Updated Certificate Presentation',
+      certificate_layout: {
+        certificate_title: {x: 0.5, y: 0.3, align: 'center', font_size: 30},
+        member_name: {x: 0.53, y: 0.52, align: 'center', font_size: 28},
+        course_title: {x: 0.5, y: 0.7, align: 'center', font_size: 21},
+        issued_date: {x: 0.8, y: 0.85, align: 'right', font_size: 11},
+        certificate_id: {x: 0.5, y: 0.9, align: 'center', font_size: 9},
+      },
+    }),
+  });
+  assert.equal(modifiedSettings.status, 200, JSON.stringify(modifiedSettings.body));
 
   state = await api(`/api/me/courses/${courseId}/lms`, member.token);
   assert.equal(state.body.summary.percent, 100);
@@ -338,6 +380,17 @@ try {
   assert.equal(state.body.summary.completed_assessments, 6);
   assert.equal(state.body.certificate.issued, true);
   assert.match(state.body.certificate.certificate_number, /^MAHT-CERT-/);
+  assert.equal(
+    state.body.certificate.verification_code,
+    issuedCertificate.data.verification_code,
+  );
+
+  const certificateRecord = await api(`/api/me/courses/${courseId}/certificate`, member.token);
+  assert.equal(certificateRecord.status, 200, JSON.stringify(certificateRecord.body));
+  assert.match(
+    certificateRecord.body.verification_url,
+    new RegExp(`/certificate/verify/${issuedCertificate.data.verification_code}$`),
+  );
 
   const certificate = await api(
     `/api/me/courses/${courseId}/certificate?download=1`,
@@ -348,8 +401,27 @@ try {
   assert.ok(certificate.bytes.length > 1000, 'generated certificate PDF must contain data');
   assert.equal(String.fromCharCode(...certificate.bytes.slice(0, 4)), '%PDF');
 
+  const refreshedCertificate = await adminClient
+    .from('course_certificates')
+    .select('certificate_number,issued_at,metadata')
+    .eq('course_id', courseId)
+    .eq('user_id', member.id)
+    .single();
+  if (refreshedCertificate.error) throw new Error(refreshedCertificate.error.message);
+  assert.equal(
+    refreshedCertificate.data.certificate_number,
+    state.body.certificate.certificate_number,
+    'presentation refresh must preserve the permanent certificate ID',
+  );
+  assert.equal(
+    refreshedCertificate.data.metadata.certificate_title,
+    'Updated Certificate Presentation',
+  );
+  assert.equal(refreshedCertificate.data.metadata.certificate_layout.member_name.x, 0.53);
+  assert.equal(refreshedCertificate.data.metadata.certificate_layout.certificate_id.y, 0.9);
+
   console.log(
-    'LMS assessment production smoke passed: submodules, secure scoring, failed retry, sequential gates, module/final assessments, progress, authenticated template preview, saved placeholder layout, and generated certificate',
+    'LMS assessment production smoke passed: submodules, secure scoring, failed retry, sequential gates, module/final assessments, progress, authenticated template preview, saved and refreshed placeholder layout, public validation, and QR-enabled generated certificate',
   );
 } finally {
   if (certificateTemplatePath) {

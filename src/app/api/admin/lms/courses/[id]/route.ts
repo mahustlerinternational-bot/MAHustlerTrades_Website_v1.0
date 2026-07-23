@@ -2,6 +2,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {requireAdminSession,supabaseAdmin} from '@/lib/supabase/server';
 import {signedVideoUrl} from '@/lib/lms/media';
 import {normalizeCertificateLayout} from '@/lib/lms/certificateLayout';
+import {lessonMediaFromValue} from '@/lib/lms/lessonMedia';
 
 export const dynamic='force-dynamic';
 
@@ -24,7 +25,22 @@ export async function GET(req:NextRequest,{params}:{params:Promise<{id:string}>}
     ? await supabaseAdmin.from('lms_questions').select('*').in('assessment_id',assessmentIds).order('sort_order')
     : {data:[],error:null};
   if(questions.error)return NextResponse.json({error:questions.error.message},{status:500});
-  const withPlayback=await Promise.all((lessons.data??[]).map(async lesson=>({...lesson,playback_url:lesson.video_storage_path?await signedVideoUrl(lesson.video_storage_path):lesson.video_url})));
+  const withPlayback=await Promise.all((lessons.data??[]).map(async lesson=>{
+    const introMedia=lessonMediaFromValue(lesson.intro_media,lesson.video_url,lesson.video_storage_path);
+    const outroMedia=lessonMediaFromValue(lesson.outro_media);
+    const [introPlayback,outroPlayback]=await Promise.all([
+      introMedia?.storage_path?signedVideoUrl(introMedia.storage_path):Promise.resolve(introMedia?.url??null),
+      outroMedia?.storage_path?signedVideoUrl(outroMedia.storage_path):Promise.resolve(outroMedia?.url??null),
+    ]);
+    return {
+      ...lesson,
+      intro_media:introMedia,
+      outro_media:outroMedia,
+      intro_playback_url:introPlayback,
+      outro_playback_url:outroPlayback,
+      playback_url:introMedia?.type==='video'?introPlayback:null,
+    };
+  }));
   return NextResponse.json({
     course:course.data,
     modules:(modules.data??[]).map(module=>({...module,lessons:withPlayback.filter(lesson=>lesson.module_id===module.id)})),

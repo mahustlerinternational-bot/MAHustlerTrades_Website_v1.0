@@ -1,10 +1,12 @@
 import 'server-only';
 
 import {PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage} from 'pdf-lib';
+import QRCode from 'qrcode';
 
 import {downloadCertificateTemplate} from '@/lib/lms/media';
 import {getMemberLmsState} from '@/lib/lms/memberState';
 import {supabaseAdmin} from '@/lib/supabase/server';
+import {buildCertificateVerificationUrl} from '@/lib/lms/certificateVerification';
 import {
   normalizeCertificateLayout,
   type CertificatePlaceholderLayout,
@@ -21,6 +23,8 @@ type CertificateRecord = {
   metadata: Record<string, unknown>;
 };
 
+type CertificatePresentation = Pick<CertificateRecord, 'template_path_snapshot' | 'metadata'>;
+
 function randomCode(length = 10) {
   return crypto.randomUUID().replace(/-/g, '').slice(0, length).toUpperCase();
 }
@@ -29,20 +33,10 @@ function createCertificateNumber() {
   return `MAHT-CERT-${new Date().getUTCFullYear()}-${randomCode(8)}`;
 }
 
-export async function ensureCourseCertificate(userId: string, courseId: string) {
-  const existing = await supabaseAdmin
-    .from('course_certificates')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('course_id', courseId)
-    .maybeSingle();
-  if (existing.data) return existing.data as CertificateRecord;
-
-  const state = await getMemberLmsState(userId, courseId, false);
-  if (!state.certificate.eligible) {
-    throw new Error('Complete all lessons and pass the final assessment before claiming this certificate');
-  }
-
+async function getCurrentCertificatePresentation(
+  userId: string,
+  courseId: string,
+): Promise<CertificatePresentation> {
   const [profile, course] = await Promise.all([
     supabaseAdmin.from('profiles').select('full_name,member_code').eq('id', userId).single(),
     supabaseAdmin
@@ -54,14 +48,8 @@ export async function ensureCourseCertificate(userId: string, courseId: string) 
   if (profile.error) throw new Error(profile.error.message);
   if (course.error) throw new Error(course.error.message);
 
-  const issuedAt = new Date().toISOString();
-  const payload = {
-    course_id: courseId,
-    user_id: userId,
-    certificate_number: createCertificateNumber(),
-    verification_code: randomCode(16),
+  return {
     template_path_snapshot: course.data.certificate_template_path,
-    issued_at: issuedAt,
     metadata: {
       member_name: profile.data.full_name ?? 'MAHustler Member',
       member_code: profile.data.member_code ?? null,
@@ -71,6 +59,52 @@ export async function ensureCourseCertificate(userId: string, courseId: string) 
       signatory_title: course.data.certificate_signatory_title,
       certificate_layout: normalizeCertificateLayout(course.data.certificate_layout),
     },
+  };
+}
+
+async function refreshCertificatePresentation(
+  record: CertificateRecord,
+  userId: string,
+  courseId: string,
+) {
+  const presentation = await getCurrentCertificatePresentation(userId, courseId);
+  const refreshed = await supabaseAdmin
+    .from('course_certificates')
+    .update(presentation)
+    .eq('id', record.id)
+    .select('*')
+    .single();
+  if (refreshed.error) throw new Error(refreshed.error.message);
+  return refreshed.data as CertificateRecord;
+}
+
+export async function ensureCourseCertificate(userId: string, courseId: string) {
+  const existing = await supabaseAdmin
+    .from('course_certificates')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .maybeSingle();
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data) {
+    return refreshCertificatePresentation(existing.data as CertificateRecord, userId, courseId);
+  }
+
+  const state = await getMemberLmsState(userId, courseId, false);
+  if (!state.certificate.eligible) {
+    throw new Error('Complete all lessons and pass the final assessment before claiming this certificate');
+  }
+
+  const presentation = await getCurrentCertificatePresentation(userId, courseId);
+
+  const issuedAt = new Date().toISOString();
+  const payload = {
+    course_id: courseId,
+    user_id: userId,
+    certificate_number: createCertificateNumber(),
+    verification_code: randomCode(16),
+    ...presentation,
+    issued_at: issuedAt,
   };
   const inserted = await supabaseAdmin
     .from('course_certificates')
@@ -87,7 +121,7 @@ export async function ensureCourseCertificate(userId: string, courseId: string) 
     .eq('course_id', courseId)
     .single();
   if (raced.error) throw new Error(raced.error.message);
-  return raced.data as CertificateRecord;
+  return refreshCertificatePresentation(raced.data as CertificateRecord, userId, courseId);
 }
 
 function centeredText(
@@ -139,7 +173,7 @@ function positionedText(
   });
 }
 
-async function createCertificateDocument(record: CertificateRecord) {
+async function createCertificateDocument(record: CertificateRecord, requestOrigin?: string) {
   const templatePath = record.template_path_snapshot;
   let document: PDFDocument;
   let page: PDFPage;
@@ -201,15 +235,6 @@ async function createCertificateDocument(record: CertificateRecord) {
       borderColor: rgb(0.45, 0.33, 0.08),
       borderWidth: 0.8,
     });
-  } else {
-    page.drawRectangle({
-      x: width * 0.12,
-      y: height * 0.19,
-      width: width * 0.76,
-      height: height * 0.57,
-      color: rgb(1, 1, 1),
-      opacity: 0.78,
-    });
   }
 
   const metadata = record.metadata ?? {};
@@ -224,14 +249,57 @@ async function createCertificateDocument(record: CertificateRecord) {
   }).format(new Date(record.issued_at));
   const layout = normalizeCertificateLayout(metadata.certificate_layout);
 
-  centeredText(page, 'MAHUSTLER TRADES ACADEMY', height * 0.79, bold, 15, gold, width * 0.75);
   positionedText(page, certificateTitle, layout.certificate_title, bold, ink, width * 0.82);
-  centeredText(page, 'This certifies that', height * 0.59, regular, 13, muted, width * 0.7);
   positionedText(page, memberName, layout.member_name, bold, gold, width * 0.82);
-  centeredText(page, 'has successfully completed', height * 0.41, regular, 13, muted, width * 0.7);
-  positionedText(page, courseTitle, layout.course_title, bold, ink, width * 0.82);
+  positionedText(page, courseTitle, layout.course_title, bold, gold, width * 0.82);
   positionedText(page, `Issued ${issuedDate}`, layout.issued_date, regular, muted, width * 0.82);
-  centeredText(page, record.certificate_number, height * 0.17, bold, 9, muted, width * 0.65);
+  positionedText(
+    page,
+    `Certificate ID: ${record.certificate_number}`,
+    layout.certificate_id,
+    bold,
+    muted,
+    width * 0.72,
+  );
+
+  const verificationUrl = buildCertificateVerificationUrl(
+    record.verification_code,
+    requestOrigin,
+  );
+  const qrPng = await QRCode.toBuffer(verificationUrl, {
+    type: 'png',
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width: 280,
+    color: {dark: '#050505', light: '#FFFFFF'},
+  });
+  const qrImage = await document.embedPng(qrPng);
+  const qrLayout = layout.verification_qr;
+  const qrSize = Math.min(width, height) * (qrLayout.font_size / 595);
+  const qrX = Math.min(
+    width - qrSize - 12,
+    Math.max(12, width * qrLayout.x - qrSize / 2),
+  );
+  const qrY = Math.min(
+    height - qrSize - 12,
+    Math.max(22, height * (1 - qrLayout.y) - qrSize / 2),
+  );
+  page.drawRectangle({
+    x: qrX - 2,
+    y: qrY - 2,
+    width: qrSize + 4,
+    height: qrSize + 4,
+    color: rgb(1, 1, 1),
+  });
+  page.drawImage(qrImage, {x: qrX, y: qrY, width: qrSize, height: qrSize});
+  const qrCaption = 'SCAN TO VALIDATE';
+  page.drawText(qrCaption, {
+    x: qrX + (qrSize - bold.widthOfTextAtSize(qrCaption, 5.5)) / 2,
+    y: Math.max(12, qrY - 9),
+    size: 5.5,
+    font: bold,
+    color: muted,
+  });
 
   const signatoryName = String(metadata.signatory_name ?? '').trim();
   if (signatoryName) {
@@ -247,7 +315,7 @@ async function createCertificateDocument(record: CertificateRecord) {
   return document;
 }
 
-export async function generateCertificatePdf(record: CertificateRecord) {
-  const document = await createCertificateDocument(record);
+export async function generateCertificatePdf(record: CertificateRecord, requestOrigin?: string) {
+  const document = await createCertificateDocument(record, requestOrigin);
   return document.save();
 }

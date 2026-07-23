@@ -51,7 +51,7 @@ export async function POST(req:NextRequest) {
   if(type==='course'){
     const {data:profile,error:profileError}=await supabaseAdmin.from('profiles').select('ib_status').eq('id',session.userId).single();
     if(profileError)return NextResponse.json({error:'Unable to verify course payment eligibility'},{status:500});
-    if(profile?.ib_status==='active')return NextResponse.json({error:'Payment is not required. Your approved IB account includes free access to every course.',free_ib_access:true},{status:409});
+    if(profile?.ib_status==='active')return NextResponse.json({error:'Payment is not required. Your approved Elite access includes every course for free.',free_ib_access:true},{status:409});
   }
 
   const purchase = await resolvePurchase(type,id,body);

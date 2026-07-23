@@ -31,7 +31,7 @@ const LEVEL_COLOR: Record<string, string> = {
 };
 
 const ACCESS_LABEL: Record<PaymentMethod, string> = {
-  ib_grant: 'Verified IB Access',
+  ib_grant: 'Verified Elite Access',
   admin_grant: 'Enrollment Grant',
   coupon: 'Coupon Enrollment',
   free: 'Free Enrollment',

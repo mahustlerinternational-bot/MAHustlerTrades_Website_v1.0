@@ -43,7 +43,7 @@ interface Props {
 }
 
 const STEP_ICONS  = ['🏛️', '💰', '📋', '✅'];
-const STEP_LABELS = ['IB Access', 'Open Account', 'Submit Details', 'Confirmation'];
+const STEP_LABELS = ['Elite Access', 'Open Account', 'Submit Details', 'Confirmation'];
 
 export default function IBRegistrationWizard({ guide, brokers, existing, communityInvites,communityAccounts,linking }: Props) {
   const [step,    setStep]    = useState(0);
@@ -78,7 +78,7 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
       if (!res.ok) { const e = await res.json(); toast.error(e.error); return; }
       setSubmitted(true);
       setStep(3);
-      toast.success('IB registration submitted! We\'ll review within 24-48 hours.');
+      toast.success('Elite registration submitted! We\'ll review within 24-48 hours.');
     } finally { setLoading(false); }
   }
 
@@ -109,11 +109,11 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
       }}>
         <div style={{ fontSize: '1.9rem', marginBottom: '.75rem' }}>{isApproved ? '✅' : '❌'}</div>
         <p style={{ fontFamily: 'Cinzel,serif', fontWeight: 700, color: '#fff', fontSize: '1.05rem', marginBottom: '.5rem' }}>
-          {isApproved ? 'IB Access Granted' : 'Application Rejected'}
+          {isApproved ? 'Elite Access Granted' : 'Application Rejected'}
         </p>
         <p style={{ fontSize: '.75rem', color: '#888' }}>
           {isApproved
-            ? 'Your IB Elite membership is now active. Enjoy full access to all premium features.'
+            ? 'Your Elite membership is now active. Enjoy full access to all premium features.'
             : `Your application was not approved. ${existing.admin_notes ?? 'Please contact support for more details.'}`}
         </p>
         {isApproved && communityInvites.length>0 && <div style={{display:'flex',gap:'10px',justifyContent:'center',marginTop:'1.25rem',flexWrap:'wrap'}}>{communityInvites.map(invite=>{
@@ -169,10 +169,10 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
           <div style={{ background: 'linear-gradient(135deg,rgba(212,175,55,.05),transparent)', border: '1px solid rgba(212,175,55,.2)', padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '.75rem' }}>
               <Shield size={18} style={{ color: '#D4AF37' }} />
-              <h3 style={{ fontFamily: 'Cinzel,serif', fontWeight: 700, color: '#fff' }}>IB Elite Access</h3>
+              <h3 style={{ fontFamily: 'Cinzel,serif', fontWeight: 700, color: '#fff' }}>Elite Access</h3>
             </div>
             <p style={{ fontSize: '.78rem', color: '#B0B0B0', lineHeight: 1.7, marginBottom: '1rem' }}>
-              The IB (Introducing Broker) programme gives you <strong style={{ color: '#D4AF37' }}>full Elite membership at zero monthly cost</strong> by partnering with our approved broker. As long as your trading account remains active, your access continues automatically.
+              The approved broker programme gives you <strong style={{ color: '#D4AF37' }}>full Elite membership at zero monthly cost</strong>. As long as your trading account remains active, your access continues automatically.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {[
@@ -225,7 +225,7 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
                 <button onClick={copyLink} style={iconBtnS}><Copy size={13} /></button>
                 <a href={selectedBroker.referral_link} target="_blank" rel="noopener noreferrer" style={iconBtnS}><ExternalLink size={13} /></a>
               </div>
-              <p style={{ fontSize: '.62rem', color: '#555', marginTop: '8px' }}>⚠️ You MUST use this link to qualify for IB access.</p>
+              <p style={{ fontSize: '.62rem', color: '#555', marginTop: '8px' }}>⚠️ You MUST use this link to qualify for Elite access.</p>
             </div>
             <div style={{ background: 'rgba(212,175,55,.04)', border: '1px solid rgba(212,175,55,.15)', padding: '10px' }}>
               <p style={{ fontSize: '.7rem', color: '#B0B0B0', lineHeight: 1.6 }}>{guide.steps[1]?.body}</p>
@@ -256,7 +256,7 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
                 onFocus={e => (e.currentTarget.style.borderColor = 'rgba(212,175,55,.4)')}
                 onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(255,255,255,.08)')} />
               {errors.account_number && <p style={errS}>{errors.account_number.message}</p>}
-              <p style={{ fontSize: '.62rem', color: '#555', marginTop: '6px' }}>This is used to verify your IB relationship with our team.</p>
+              <p style={{ fontSize: '.62rem', color: '#555', marginTop: '6px' }}>This is used to verify your broker referral relationship with our team.</p>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>

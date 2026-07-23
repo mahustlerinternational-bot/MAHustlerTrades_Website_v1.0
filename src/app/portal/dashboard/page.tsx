@@ -3,9 +3,9 @@ import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server
 import Link   from 'next/link';
 import Image  from 'next/image';
 import { format } from 'date-fns';
-import SignalHistoryPanel from '@/components/portal/quant/SignalHistoryPanel';
 import type { QuantSignal } from '@/types';
 import SignalEventFeed from '@/components/portal/quant/SignalEventFeed';
+import LiveSignalWorkspace from '@/components/portal/quant/LiveSignalWorkspace';
 import type { SignalFeedEvent } from '@/types';
 import {getCourseProgressSummaries} from '@/lib/lms/memberState';
 
@@ -55,7 +55,7 @@ export default async function PortalDashboard() {
   const pkg      = (profile as any)?.package;
   const ibStatus = (profile as any)?.ib_status ?? 'none';
   const role     = (profile as any)?.role ?? 'member';
-  const isPaid   = !!pkg || role === 'admin' || ibStatus === 'active';
+  const isPaid   = !!pkg || Boolean((profile as any)?.package_id) || role === 'admin' || ibStatus === 'active';
 
   const hour     = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -83,7 +83,7 @@ export default async function PortalDashboard() {
             <div style={{ display:'flex', alignItems:'center', gap:'10px', marginTop:'8px', flexWrap:'wrap' }}>
               {isPaid ? (
                 <span style={{ fontSize:'.6rem', letterSpacing:'2px', textTransform:'uppercase', padding:'3px 10px', background:'rgba(212,175,55,0.1)', border:'1px solid rgba(212,175,55,0.25)', color:'#D4AF37', fontFamily:'Cinzel,serif' }}>
-                  {pkg?.name ?? (ibStatus === 'active' ? 'IB Elite' : 'Admin')} · Full Access
+                  {pkg?.name ?? (ibStatus === 'active' ? 'Elite Access' : 'Admin')} · Full Access
                 </span>
               ) : (
                 <span style={{ fontSize:'.6rem', letterSpacing:'2px', textTransform:'uppercase', padding:'3px 10px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', color:'#F59E0B' }}>
@@ -109,7 +109,7 @@ export default async function PortalDashboard() {
           { icon:'📚', label:'Enrolled Courses', value:String(enrollments.length), href:'/portal/courses', color:'#D4AF37' },
           { icon:'📅', label:'Upcoming Events',  value:String(events.length),      href:'/portal/events',  color:'#60A5FA' },
           { icon:'⚡', label:'Live AI Signal',   value: isPaid ? (signal ? 'Active' : 'None') : '🔒 Upgrade', href: isPaid ? '/quant-ai' : '/portal/packages', color: isPaid && signal ? '#34D399' : '#555' },
-          { icon:'🔗', label:'IB Status',        value:(profile as any)?.ib_status ?? 'none', href:'/portal/ib', color: ibStatus==='active' ? '#34D399' : '#888' },
+          { icon:'🔗', label:'Elite Status',     value:(profile as any)?.ib_status ?? 'none', href:'/portal/ib', color: ibStatus==='active' ? '#34D399' : '#888' },
         ].map(({ icon, label, value, href, color }, i) => (
           <Link key={label} href={href} className="stat-card"
             style={{ textDecoration:'none', background:'#111', border:'1px solid rgba(255,255,255,.06)', padding:'1.25rem', display:'block', animation:`fadeUp .5s ${i*.07}s ease forwards`, opacity:0 }}>
@@ -120,33 +120,13 @@ export default async function PortalDashboard() {
         ))}
       </div>
 
-      {/* Live Signal — paid/IB only */}
-      {isPaid && signal && (
-        <div style={{ background:'linear-gradient(135deg,rgba(212,175,55,0.06),rgba(212,175,55,0.02))', border:'1px solid rgba(212,175,55,0.25)', padding:'1.25rem 1.5rem', marginBottom:'2rem', animation:'fadeUp .5s .3s ease forwards', opacity:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'1rem', flexWrap:'wrap' }}>
-            <span style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#00D084', animation:'pulse 1.5s infinite', flexShrink:0 }} />
-            <p style={{ fontFamily:'Cinzel,serif', fontSize:'.62rem', letterSpacing:'3px', textTransform:'uppercase', color:'#D4AF37' }}>Live Signal Active</p>
-            <span style={{ fontFamily:'Cinzel,serif', fontSize:'.95rem', fontWeight:700, color:'#fff' }}>{(signal as any).instrument}</span>
-            <span style={{ fontSize:'.6rem', padding:'2px 8px', ...((signal as any).signal_type==='long' ? {background:'rgba(0,208,132,.1)',color:'#00D084',border:'1px solid rgba(0,208,132,.2)'} : {background:'rgba(255,71,87,.1)',color:'#FF4757',border:'1px solid rgba(255,71,87,.2)'}) }}>
-              {String((signal as any).signal_type ?? '').toUpperCase()}
-            </span>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'6px', maxWidth:'480px' }}>
-            {[
-              {lbl:'TP',    val:String((signal as any).tp_price),    col:'#00D084', bg:'rgba(0,208,132,.06)',  bl:'#00D084'},
-              {lbl:'ENTRY', val:String((signal as any).entry_price), col:'#FFD700', bg:'rgba(212,175,55,.08)', bl:'#D4AF37'},
-              {lbl:'SL',    val:String((signal as any).sl_price),    col:'#FF4757', bg:'rgba(255,71,87,.06)',  bl:'#FF4757'},
-            ].map(r => (
-              <div key={r.lbl} style={{ padding:'10px 14px', background:r.bg, borderLeft:`3px solid ${r.bl}`, display:'flex', justifyContent:'space-between', alignItems:'center', fontFamily:'JetBrains Mono,monospace' }}>
-                <span style={{ fontSize:'.58rem', letterSpacing:'2px', textTransform:'uppercase', fontWeight:700, color:r.col }}>{r.lbl}</span>
-                <span style={{ fontSize:'.88rem', fontWeight:600, color:r.col }}>{r.val}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Live Signal — realtime plus one-second authenticated refresh */}
+      {isPaid && (
+        <LiveSignalWorkspace
+          initialSignal={(signal as QuantSignal | null) ?? null}
+          initialSignals={signalHistory as QuantSignal[]}
+        />
       )}
-
-      {isPaid && <SignalHistoryPanel signals={signalHistory as QuantSignal[]} />}
       {isPaid && <SignalEventFeed initialEvents={feedEvents as SignalFeedEvent[]} />}
 
       {/* Free account upgrade banner */}
@@ -163,7 +143,7 @@ export default async function PortalDashboard() {
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:'8px', flexShrink:0 }}>
               <Link href="/portal/packages" style={{ background:'linear-gradient(135deg,#B8860B,#D4AF37,#FFD700)', color:'#000', textDecoration:'none', padding:'12px 28px', fontFamily:'Cinzel,serif', fontSize:'.72rem', fontWeight:700, letterSpacing:'2px', textTransform:'uppercase', textAlign:'center', whiteSpace:'nowrap' }}>Upgrade Now</Link>
-              <Link href="/portal/ib" style={{ background:'transparent', color:'#D4AF37', textDecoration:'none', border:'1px solid rgba(212,175,55,.35)', padding:'11px 28px', fontFamily:'Cinzel,serif', fontSize:'.68rem', fontWeight:600, letterSpacing:'2px', textTransform:'uppercase', textAlign:'center', whiteSpace:'nowrap' }}>Free via IB Access</Link>
+              <Link href="/portal/ib" style={{ background:'transparent', color:'#D4AF37', textDecoration:'none', border:'1px solid rgba(212,175,55,.35)', padding:'11px 28px', fontFamily:'Cinzel,serif', fontSize:'.68rem', fontWeight:600, letterSpacing:'2px', textTransform:'uppercase', textAlign:'center', whiteSpace:'nowrap' }}>Free via Elite Access</Link>
             </div>
           </div>
         </div>

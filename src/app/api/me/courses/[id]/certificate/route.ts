@@ -1,6 +1,7 @@
 import {NextRequest, NextResponse} from 'next/server';
 
 import {ensureCourseCertificate, generateCertificatePdf} from '@/lib/lms/certificate';
+import {buildCertificateVerificationUrl} from '@/lib/lms/certificateVerification';
 import {hasCourseAccess} from '@/lib/lms/access';
 import {requireAuthSession, supabaseAdmin} from '@/lib/supabase/server';
 
@@ -19,17 +20,23 @@ export async function GET(
 
   try {
     const certificate = await ensureCourseCertificate(session.userId, id);
+    const requestOrigin = new URL(req.url).origin;
+    const verificationUrl = buildCertificateVerificationUrl(
+      certificate.verification_code,
+      requestOrigin,
+    );
     const download = new URL(req.url).searchParams.get('download') === '1';
     if (!download) {
       return NextResponse.json({
         certificate_number: certificate.certificate_number,
         verification_code: certificate.verification_code,
+        verification_url: verificationUrl,
         issued_at: certificate.issued_at,
       });
     }
 
     const [pdf, course] = await Promise.all([
-      generateCertificatePdf(certificate),
+      generateCertificatePdf(certificate, requestOrigin),
       supabaseAdmin.from('courses').select('title').eq('id', id).single(),
     ]);
     const safeTitle = String(course.data?.title ?? 'course-certificate')

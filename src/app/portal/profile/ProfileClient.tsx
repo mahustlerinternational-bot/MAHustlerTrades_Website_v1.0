@@ -15,12 +15,12 @@ type FormData = z.infer<typeof schema>;
 const ROLE_INFO: Record<string,{label:string;color:string;bg:string;border:string}> = {
   admin:     { label:'Administrator',   color:'#A78BFA', bg:'rgba(167,139,250,.08)', border:'rgba(167,139,250,.25)' },
   member:    { label:'Member',          color:'#D4AF37', bg:'rgba(212,175,55,.08)',  border:'rgba(212,175,55,.25)'  },
-  ib_member: { label:'IB Elite Member', color:'#60A5FA', bg:'rgba(96,165,250,.08)',  border:'rgba(96,165,250,.25)'  },
+  ib_member: { label:'Elite Member', color:'#60A5FA', bg:'rgba(96,165,250,.08)',  border:'rgba(96,165,250,.25)'  },
 };
 const IB_INFO: Record<string,{label:string;color:string;desc:string}> = {
-  none:     { label:'Not Applied',  color:'#555',    desc:'Apply for free Elite access via IB registration.' },
+  none:     { label:'Not Applied',  color:'#555',    desc:'Apply for free Elite access via broker registration.' },
   pending:  { label:'Under Review', color:'#F59E0B', desc:'Your application is being reviewed (24–48 hrs).' },
-  active:   { label:'IB Active ✓',  color:'#34D399', desc:'Your IB Elite access is fully active.' },
+  active:   { label:'Elite Active ✓', color:'#34D399', desc:'Your Elite access is fully active.' },
   rejected: { label:'Not Approved', color:'#FF4757', desc:'Application not approved. Contact support.' },
 };
 
@@ -133,7 +133,7 @@ export default function ProfileClient() {
                 )}
                 {user.ib_status === 'active' && (
                   <span style={{ fontSize:'.6rem', letterSpacing:'2px', textTransform:'uppercase', padding:'3px 9px', border:'1px solid rgba(52,211,153,.3)', color:'#34D399', background:'rgba(52,211,153,.08)' }}>
-                    IB Elite ✓
+                    ELITE ACCESS
                   </span>
                 )}
               </div>
@@ -211,11 +211,11 @@ export default function ProfileClient() {
 
             {/* IB status card */}
             <div style={{ background:'#0A0A0A', border:'1px solid rgba(255,255,255,.06)', padding:'1rem' }}>
-              <p style={{ fontSize:'.58rem', letterSpacing:'2px', textTransform:'uppercase', color:'#555', marginBottom:'8px' }}>🔗 IB Status</p>
+              <p style={{ fontSize:'.58rem', letterSpacing:'2px', textTransform:'uppercase', color:'#555', marginBottom:'8px' }}>🔗 Elite Status</p>
               <p style={{ fontFamily:'Cinzel,serif', fontSize:'.95rem', fontWeight:700, color:ibInfo.color, marginBottom:'4px' }}>{ibInfo.label}</p>
               <p style={{ fontSize:'.68rem', color:'#555', lineHeight:1.5, marginBottom:'6px' }}>{ibInfo.desc}</p>
               {user.ib_status === 'none' && (
-                <Link href="/portal/ib" style={{ fontSize:'.68rem', color:'#D4AF37', textDecoration:'none' }}>Apply for IB Access →</Link>
+                <Link href="/portal/ib" style={{ fontSize:'.68rem', color:'#D4AF37', textDecoration:'none' }}>Apply for Elite Access →</Link>
               )}
             </div>
           </div>

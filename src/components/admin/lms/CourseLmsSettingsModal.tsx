@@ -15,6 +15,7 @@ import {
   FileBadge2,
   Loader2,
   Move,
+  QrCode,
   RotateCcw,
   Save,
   Trash2,
@@ -212,11 +213,14 @@ export default function CourseLmsSettingsModal({
   }
 
   const selected = draft.certificate_layout[selectedPlaceholder];
+  const selectedIsQr = selectedPlaceholder === 'verification_qr';
   const sampleValues: Record<CertificatePlaceholderKey, string> = {
     certificate_title: draft.certificate_title || 'Certificate of Completion',
     member_name: 'MEMBER FULL NAME',
     course_title: course.title || 'COURSE TITLE',
     issued_date: 'Issued 23 July 2026',
+    certificate_id: 'Certificate ID: MAHT-CERT-PREVIEW',
+    verification_qr: 'SCAN TO VALIDATE',
   };
 
   return (
@@ -383,6 +387,8 @@ export default function CourseLmsSettingsModal({
                   {PLACEHOLDER_KEYS.map(key => {
                     const position = draft.certificate_layout[key];
                     const active = selectedPlaceholder === key;
+                    const isQr = key === 'verification_qr';
+                    const qrPreviewSize = Math.max(28, Math.min(58, position.font_size * 0.64));
                     return (
                       <button
                         type="button"
@@ -394,16 +400,24 @@ export default function CourseLmsSettingsModal({
                           left: `${position.x * 100}%`,
                           top: `${position.y * 100}%`,
                           transform:
-                            position.align === 'center'
+                            isQr || position.align === 'center'
                               ? 'translate(-50%,-50%)'
                               : position.align === 'right'
                                 ? 'translate(-100%,-50%)'
                                 : 'translate(0,-50%)',
-                          fontSize: `${Math.max(7, position.font_size * 0.42)}px`,
+                          fontSize: isQr
+                            ? '6px'
+                            : `${Math.max(7, position.font_size * 0.42)}px`,
+                          width: isQr ? `${qrPreviewSize}px` : undefined,
+                          height: isQr ? `${qrPreviewSize}px` : undefined,
+                          justifyContent: isQr ? 'center' : undefined,
+                          flexDirection: isQr ? 'column' : undefined,
+                          whiteSpace: isQr ? 'normal' : 'nowrap',
+                          padding: isQr ? '3px' : '3px 5px',
                           color:
-                            key === 'member_name'
+                            key === 'member_name' || key === 'course_title'
                               ? '#D4AF37'
-                              : key === 'certificate_title' || key === 'course_title'
+                              : key === 'certificate_title'
                                 ? '#FAFAFA'
                                 : '#D6D6D6',
                           borderColor: active ? '#D4AF37' : 'rgba(66,153,225,.75)',
@@ -414,7 +428,7 @@ export default function CourseLmsSettingsModal({
                         }}
                         title={`Drag ${CERTIFICATE_PLACEHOLDER_LABELS[key]}`}
                       >
-                        <Move size={9} />
+                        {isQr ? <QrCode size={Math.max(16, qrPreviewSize * 0.53)} /> : <Move size={9} />}
                         {sampleValues[key]}
                       </button>
                     );
@@ -442,35 +456,37 @@ export default function CourseLmsSettingsModal({
                 </div>
 
                 <div style={placementControls}>
-                  <div>
-                    <span style={labelStyle}>Text alignment</span>
-                    <div style={{display: 'flex', gap: '5px'}}>
-                      {(
-                        [
-                          ['left', AlignLeft],
-                          ['center', AlignCenter],
-                          ['right', AlignRight],
-                        ] as const
-                      ).map(([alignment, Icon]) => (
-                        <button
-                          type="button"
-                          key={alignment}
-                          onClick={() =>
-                            updatePlaceholder(selectedPlaceholder, {align: alignment})
-                          }
-                          aria-label={`${alignment} align`}
-                          style={{
-                            ...alignmentButton,
-                            color: selected.align === alignment ? '#050505' : '#888',
-                            background:
-                              selected.align === alignment ? '#D4AF37' : '#0A0A0A',
-                          }}
-                        >
-                          <Icon size={13} />
-                        </button>
-                      ))}
+                  {!selectedIsQr && (
+                    <div>
+                      <span style={labelStyle}>Text alignment</span>
+                      <div style={{display: 'flex', gap: '5px'}}>
+                        {(
+                          [
+                            ['left', AlignLeft],
+                            ['center', AlignCenter],
+                            ['right', AlignRight],
+                          ] as const
+                        ).map(([alignment, Icon]) => (
+                          <button
+                            type="button"
+                            key={alignment}
+                            onClick={() =>
+                              updatePlaceholder(selectedPlaceholder, {align: alignment})
+                            }
+                            aria-label={`${alignment} align`}
+                            style={{
+                              ...alignmentButton,
+                              color: selected.align === alignment ? '#050505' : '#888',
+                              background:
+                                selected.align === alignment ? '#D4AF37' : '#0A0A0A',
+                            }}
+                          >
+                            <Icon size={13} />
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <RangeControl
                     label={`Horizontal ${Math.round(selected.x * 100)}%`}
                     value={selected.x}
@@ -488,10 +504,14 @@ export default function CourseLmsSettingsModal({
                     onChange={y => updatePlaceholder(selectedPlaceholder, {y})}
                   />
                   <RangeControl
-                    label={`Font ${selected.font_size} pt`}
+                    label={
+                      selectedIsQr
+                        ? `QR size ${selected.font_size}`
+                        : `Font ${selected.font_size} pt`
+                    }
                     value={selected.font_size}
-                    minimum={8}
-                    maximum={48}
+                    minimum={selectedIsQr ? 36 : 8}
+                    maximum={selectedIsQr ? 96 : 48}
                     step={1}
                     onChange={font_size =>
                       updatePlaceholder(selectedPlaceholder, {font_size})
@@ -501,7 +521,8 @@ export default function CourseLmsSettingsModal({
 
                 <p style={previewNote}>
                   Blue boxes are editable placeholders and will not appear on the final certificate.
-                  Placement scales proportionally to the uploaded template.
+                  The QR opens the public validation record. Placement scales proportionally to the
+                  uploaded template.
                 </p>
               </div>
             </div>
@@ -530,10 +551,6 @@ function DefaultCertificateBackground() {
   return (
     <div style={defaultCertificate}>
       <div style={defaultInnerBorder} />
-      <p style={defaultBrand}>MAHUSTLER TRADES ACADEMY</p>
-      <p style={{...defaultHelper, top: '41%'}}>This certifies that</p>
-      <p style={{...defaultHelper, top: '59%'}}>has successfully completed</p>
-      <p style={{...defaultHelper, top: '88%'}}>MAHT-CERT-PREVIEW</p>
     </div>
   );
 }
@@ -791,25 +808,6 @@ const defaultInnerBorder: CSSProperties = {
   position: 'absolute',
   inset: '7px',
   border: '1px solid rgba(212,175,55,.55)',
-};
-const defaultBrand: CSSProperties = {
-  position: 'absolute',
-  top: '19%',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  color: '#D4AF37',
-  fontSize: 'clamp(7px,1.15vw,13px)',
-  fontFamily: 'Cinzel,serif',
-  letterSpacing: '2px',
-  whiteSpace: 'nowrap',
-};
-const defaultHelper: CSSProperties = {
-  position: 'absolute',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  color: '#888',
-  fontSize: 'clamp(6px,.8vw,9px)',
-  whiteSpace: 'nowrap',
 };
 const previewNote: CSSProperties = {
   color: '#555',

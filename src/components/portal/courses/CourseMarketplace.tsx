@@ -26,7 +26,7 @@ export default function CourseMarketplace({ courses,ibApproved=false }: { course
       const data = await res.json();
 
       if (res.ok) {
-        toast.success(data.ib_benefit?'Verified IB benefit applied — course unlocked free! 🎉':'Enrolled successfully! 🎉');
+        toast.success(data.ib_benefit?'Verified Elite benefit applied — course unlocked free! 🎉':'Enrolled successfully! 🎉');
         window.location.reload();
         return;
       }
@@ -106,13 +106,13 @@ export default function CourseMarketplace({ courses,ibApproved=false }: { course
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(255,255,255,.05)', paddingTop:'10px' }}>
                 <div>
                   {ibApproved
-                    ? <><span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#34D399' }}>Free with Verified IB</span>{Number(c.price)>0&&<span style={{ fontSize:'.62rem', color:'#666', display:'block', marginTop:'1px',textDecoration:'line-through' }}>${c.price} standard price</span>}</>
+                    ? <><span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#34D399' }}>Free with Verified Elite</span>{Number(c.price)>0&&<span style={{ fontSize:'.62rem', color:'#666', display:'block', marginTop:'1px',textDecoration:'line-through' }}>${c.price} standard price</span>}</>
                     : c.price === 0
                     ? <span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#34D399' }}>Free</span>
                     : <>
                         <span style={{ fontFamily:'Cinzel,serif', fontSize:'1rem', fontWeight:700, color:'#D4AF37' }}>${c.price}</span>
                         <span style={{ fontSize:'.62rem', color:'#555', display:'block', marginTop:'1px' }}>AED {(c.price*USD_TO_AED).toFixed(0)} via Ziina</span>
-                        <a href="/portal/ib" style={{fontSize:'.58rem',color:'#34D399',display:'block',marginTop:'3px',textDecoration:'none'}}>Or free with approved IB →</a>
+                        <a href="/portal/ib" style={{fontSize:'.58rem',color:'#34D399',display:'block',marginTop:'3px',textDecoration:'none'}}>Or free with approved Elite access →</a>
                       </>}
                 </div>
                 <button onClick={() => enroll(c)} disabled={enrolling === c.id}

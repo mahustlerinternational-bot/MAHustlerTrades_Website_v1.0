@@ -21,11 +21,13 @@ import {
   Clock,
   Download,
   Film,
+  Image as ImageIcon,
   Layers3,
   Loader2,
   LockKeyhole,
   Menu,
   PlayCircle,
+  QrCode,
   ShieldCheck,
   Trophy,
   X,
@@ -366,7 +368,7 @@ export default function CoursePlayer({courseId}: {courseId: string}) {
                   ) : (
                     <Award size={14} color="#D4AF37" />
                   )}
-                  <span style={{flex: 1, textAlign: 'left'}}>Final Assessment</span>
+                  <span style={{flex: 1, textAlign: 'left'}}>Final Course Assessment</span>
                   {data.final_assessment.best_score !== null && (
                     <span style={{fontSize: '.52rem', color: '#34D399'}}>
                       {Math.round(data.final_assessment.best_score ?? 0)}%
@@ -412,7 +414,13 @@ export default function CoursePlayer({courseId}: {courseId: string}) {
                 <LessonStatus lesson={selected} />
               </div>
 
-              <VideoStage lesson={selected} onProgress={videoProgress} />
+              <LessonMediaStage
+                lesson={selected}
+                slot="introduction"
+                mediaType={selected.intro_media?.type ?? (selected.playback_url ? 'video' : null)}
+                playbackUrl={selected.intro_playback_url ?? selected.playback_url ?? null}
+                onProgress={videoProgress}
+              />
 
               <div style={contentPanel}>
                 {selected.content ? (
@@ -425,6 +433,14 @@ export default function CoursePlayer({courseId}: {courseId: string}) {
                 )}
               </div>
 
+              <LessonMediaStage
+                lesson={selected}
+                slot="outro"
+                mediaType={selected.outro_media?.type ?? null}
+                playbackUrl={selected.outro_playback_url ?? null}
+                onProgress={videoProgress}
+              />
+
               {selected.assessment && (
                 <AssessmentGate
                   assessment={selected.assessment}
@@ -432,10 +448,18 @@ export default function CoursePlayer({courseId}: {courseId: string}) {
                 />
               )}
 
+              {data.final_assessment && (
+                <FinalAssessmentPanel
+                  assessment={data.final_assessment}
+                  onOpen={() => openAssessment(data.final_assessment)}
+                />
+              )}
+
               {(data.certificate.issued || data.certificate.eligible) && (
                 <CertificatePanel
                   courseId={courseId}
                   certificateNumber={data.certificate.certificate_number}
+                  verificationCode={data.certificate.verification_code}
                   issued={data.certificate.issued}
                 />
               )}
@@ -608,13 +632,114 @@ function AssessmentGate({
   );
 }
 
+function FinalAssessmentPanel({
+  assessment,
+  onOpen,
+}: {
+  assessment: LmsAssessment;
+  onOpen: () => void;
+}) {
+  const locked = Boolean(assessment.locked);
+  const passed = Boolean(assessment.passed);
+
+  return (
+    <section
+      style={{
+        ...finalAssessmentPanel,
+        borderColor: passed
+          ? 'rgba(52,211,153,.34)'
+          : locked
+            ? 'rgba(255,255,255,.09)'
+            : 'rgba(212,175,55,.48)',
+        background: passed
+          ? 'linear-gradient(135deg,rgba(52,211,153,.1),rgba(52,211,153,.025))'
+          : locked
+            ? 'linear-gradient(135deg,rgba(255,255,255,.025),rgba(255,255,255,.01))'
+            : 'linear-gradient(135deg,rgba(212,175,55,.15),rgba(212,175,55,.035))',
+      }}
+    >
+      <div
+        style={{
+          ...finalAssessmentSeal,
+          borderColor: passed
+            ? 'rgba(52,211,153,.3)'
+            : locked
+              ? 'rgba(255,255,255,.1)'
+              : 'rgba(212,175,55,.4)',
+        }}
+      >
+        {passed ? (
+          <Trophy size={30} color="#34D399" />
+        ) : locked ? (
+          <LockKeyhole size={27} color="#555" />
+        ) : (
+          <Award size={30} color="#D4AF37" />
+        )}
+      </div>
+      <div style={{flex: 1, minWidth: '220px'}}>
+        <p
+          style={{
+            fontSize: '.54rem',
+            letterSpacing: '2.5px',
+            color: passed ? '#34D399' : locked ? '#666' : '#D4AF37',
+          }}
+        >
+          {passed
+            ? 'FINAL COURSE ASSESSMENT PASSED'
+            : locked
+              ? 'FINAL COURSE ASSESSMENT LOCKED'
+              : 'COURSEWORK COMPLETE · FINAL COURSE ASSESSMENT UNLOCKED'}
+        </p>
+        <h3 style={{fontFamily: 'Cinzel,serif', fontSize: '1rem', marginTop: '6px'}}>
+          {assessment.title || 'Final Course Assessment'}
+        </h3>
+        <p style={{fontSize: '.64rem', color: '#777', lineHeight: 1.65, marginTop: '6px'}}>
+          {passed
+            ? `You passed with a best score of ${Math.round(assessment.best_score ?? 0)}%. Your electronic certificate is now available below.`
+            : locked
+              ? assessment.lock_reason ??
+                'Complete every lesson, quiz, and module assessment to unlock the final assessment.'
+              : `All required lessons and module assessments are complete. Pass this ${assessment.question_count ?? 0}-question final assessment with ${assessment.passing_score}% or higher to unlock your certificate.`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={locked || passed}
+        style={{
+          ...(passed ? passedButton : completeButton),
+          minWidth: '190px',
+          opacity: locked ? 0.42 : passed ? 0.72 : 1,
+          cursor: locked || passed ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {passed ? (
+          <>
+            <CheckCircle2 size={15} /> Final Course Assessment Passed
+          </>
+        ) : locked ? (
+          <>
+            <LockKeyhole size={14} /> Complete Course First
+          </>
+        ) : (
+          <>
+            <Award size={15} /> Take Final Course Assessment
+          </>
+        )}
+      </button>
+    </section>
+  );
+}
+
 function CertificatePanel({
   courseId,
   certificateNumber,
+  verificationCode,
   issued,
 }: {
   courseId: string;
   certificateNumber: string | null;
+  verificationCode: string | null;
   issued: boolean;
 }) {
   return (
@@ -629,6 +754,16 @@ function CertificatePanel({
           {certificateNumber ?? 'Your verified certificate record will be created when downloaded.'}
         </p>
       </div>
+      {issued && verificationCode && (
+        <Link
+          href={`/certificate/verify/${encodeURIComponent(verificationCode)}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{...navButton, textDecoration: 'none'}}
+        >
+          <QrCode size={13} /> Verify Online
+        </Link>
+      )}
       <a href={`/api/me/courses/${courseId}/certificate?download=1`} style={{...completeButton, textDecoration: 'none'}}>
         <Download size={13} /> Download PDF
       </a>
@@ -636,30 +771,51 @@ function CertificatePanel({
   );
 }
 
-function VideoStage({
+function LessonMediaStage({
   lesson,
+  slot,
+  mediaType,
+  playbackUrl,
   onProgress,
 }: {
   lesson: LmsLesson;
+  slot: 'introduction' | 'outro';
+  mediaType: 'video' | 'image' | null;
+  playbackUrl: string | null;
   onProgress: (seconds: number) => void;
 }) {
-  if (!lesson.playback_url) {
+  const label=slot==='introduction'?'LESSON INTRODUCTION':'LESSON OUTRO';
+  if (!playbackUrl || !mediaType) {
+    if(slot==='outro')return null;
     return (
       <div style={videoPlaceholder}>
-        <Film size={38} color="#555" />
+        <div style={mediaPlaceholderIcons}>
+          <Film size={31} color="#555" />
+          <span style={{color:'#333',fontSize:'.55rem'}}>OR</span>
+          <ImageIcon size={31} color="#555" />
+        </div>
         <p style={{fontFamily: 'Cinzel,serif', fontSize: '.72rem', letterSpacing: '2px', color: '#666'}}>
-          VIDEO PLACEHOLDER
+          {label} MEDIA PLACEHOLDER
         </p>
         <span style={{fontSize: '.58rem', color: '#444'}}>
-          The lesson video will be added by your instructor.
+          Your instructor can display a video or image here.
         </span>
       </div>
     );
   }
-  const embed = embedVideoUrl(lesson.playback_url);
+  if(mediaType==='image'){
+    return (
+      <figure style={lessonImageStage}>
+        <span style={mediaStageLabel}>{label}</span>
+        <img src={playbackUrl} alt={`${lesson.title} ${slot}`} style={lessonImage}/>
+      </figure>
+    );
+  }
+  const embed = embedVideoUrl(playbackUrl);
   if (embed) {
     return (
       <div style={videoWrap}>
+        <span style={mediaStageLabel}>{label}</span>
         <iframe
           src={embed}
           title={lesson.title}
@@ -671,15 +827,18 @@ function VideoStage({
     );
   }
   return (
-    <video
-      key={lesson.id}
-      controls
-      controlsList="nodownload"
-      preload="metadata"
-      src={lesson.playback_url}
-      onTimeUpdate={event => onProgress(event.currentTarget.currentTime)}
-      style={{width: '100%', maxHeight: '560px', background: '#000', display: 'block', marginBottom: '18px'}}
-    />
+    <div style={directVideoStage}>
+      <span style={mediaStageLabel}>{label}</span>
+      <video
+        key={`${lesson.id}-${slot}`}
+        controls
+        controlsList="nodownload"
+        preload="metadata"
+        src={playbackUrl}
+        onTimeUpdate={event => onProgress(event.currentTarget.currentTime)}
+        style={{width: '100%', maxHeight: '560px', background: '#000', display: 'block'}}
+      />
+    </div>
   );
 }
 
@@ -713,6 +872,11 @@ const progressTrack: CSSProperties = {height: '5px', background: '#1C1C1C', over
 const progressFill: CSSProperties = {height: '100%', background: 'linear-gradient(90deg,#B8860B,#D4AF37)', transition: 'width .4s'};
 const videoWrap: CSSProperties = {position: 'relative', paddingTop: '56.25%', background: '#000', marginBottom: '18px'};
 const videoPlaceholder: CSSProperties = {height: 'min(420px,42vw)', minHeight: '230px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'radial-gradient(circle at center,#171717,#050505)', border: '1px solid rgba(255,255,255,.06)', marginBottom: '18px'};
+const mediaPlaceholderIcons: CSSProperties = {display:'flex',alignItems:'center',gap:'12px',padding:'12px 17px',border:'1px solid rgba(255,255,255,.055)',background:'rgba(255,255,255,.015)'};
+const mediaStageLabel: CSSProperties = {position:'absolute',top:'10px',left:'10px',zIndex:2,padding:'5px 8px',background:'rgba(0,0,0,.78)',border:'1px solid rgba(212,175,55,.22)',color:'#D4AF37',fontSize:'.48rem',letterSpacing:'1.5px',fontFamily:'Cinzel,serif'};
+const lessonImageStage: CSSProperties = {position:'relative',display:'grid',placeItems:'center',minHeight:'230px',maxHeight:'560px',overflow:'hidden',background:'#050505',border:'1px solid rgba(255,255,255,.07)',marginBottom:'18px'};
+const lessonImage: CSSProperties = {display:'block',width:'100%',maxHeight:'560px',objectFit:'contain'};
+const directVideoStage: CSSProperties = {position:'relative',background:'#000',marginBottom:'18px',border:'1px solid rgba(255,255,255,.06)'};
 const contentPanel: CSSProperties = {background: '#101010', border: '1px solid rgba(255,255,255,.06)', padding: '24px', marginBottom: '18px'};
 const lessonFooter: CSSProperties = {display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,.06)', flexWrap: 'wrap'};
 const navButton: CSSProperties = {display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 13px', background: '#111', border: '1px solid rgba(255,255,255,.09)', color: '#999', fontSize: '.65rem', cursor: 'pointer'};
@@ -728,5 +892,7 @@ const assessmentNavButton: CSSProperties = {width: 'calc(100% - 14px)', margin: 
 const finalNavSection: CSSProperties = {margin: '8px 7px', padding: '11px', border: '1px solid rgba(212,175,55,.2)', background: 'linear-gradient(135deg,rgba(212,175,55,.07),rgba(212,175,55,.02))'};
 const assessmentPanel: CSSProperties = {display: 'flex', alignItems: 'center', gap: '13px', padding: '16px', background: '#101010', border: '1px solid rgba(212,175,55,.2)', marginBottom: '18px', flexWrap: 'wrap'};
 const assessmentIcon: CSSProperties = {width: '48px', height: '48px', display: 'grid', placeItems: 'center', border: '1px solid rgba(212,175,55,.18)', background: '#090909'};
+const finalAssessmentPanel: CSSProperties = {display: 'flex', alignItems: 'center', gap: '16px', padding: '20px', marginBottom: '18px', border: '1px solid rgba(212,175,55,.4)', flexWrap: 'wrap', boxShadow: '0 14px 36px rgba(0,0,0,.2)'};
+const finalAssessmentSeal: CSSProperties = {width: '62px', height: '62px', flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', border: '1px solid rgba(212,175,55,.4)', background: '#090909'};
 const certificatePanel: CSSProperties = {display: 'flex', alignItems: 'center', gap: '14px', padding: '17px', marginBottom: '18px', background: 'linear-gradient(135deg,rgba(212,175,55,.1),rgba(212,175,55,.025))', border: '1px solid rgba(212,175,55,.3)', flexWrap: 'wrap'};
 const certificateSeal: CSSProperties = {width: '55px', height: '55px', borderRadius: '50%', display: 'grid', placeItems: 'center', border: '1px solid rgba(212,175,55,.35)', background: '#090909'};

@@ -7,9 +7,12 @@ import { useAuthStore }           from '@/lib/auth/store';
 const NAV_ITEMS = [
   { label:'Dashboard',  href:'/portal/dashboard', emoji:'📊' },
   { label:'My Courses', href:'/portal/courses',   emoji:'📚' },
-  { label:'My Events',  href:'/portal/events',    emoji:'📅' },
+  { label:'Elite Events', href:'/portal/events',  emoji:'📅' },
+  { label:'My Trading Journal', href:'/portal/trading-journal', emoji:'📓' },
   { label:'Packages',   href:'/portal/packages',  emoji:'💎' },
-  { label:'IB Access',  href:'/portal/ib',        emoji:'🔗' },
+  { label:'Elite Tools', href:'/portal/market-tools', emoji:'📈', requiresElite:true },
+  { label:'Elite Access', href:'/portal/ib',      emoji:'🔗', accessStatus:true },
+  { label:'Elite Vault', href:'/portal/vault',    emoji:'🔐', requiresElite:true },
   { label:'Profile',    href:'/portal/profile',   emoji:'👤' },
 ];
 
@@ -20,7 +23,7 @@ export default function PortalSidebar() {
 
   const role      = user?.role       ?? 'member';
   const ibStatus  = user?.ib_status  ?? 'none';
-  const hasPackage= !!(user as any)?.package;
+  const hasPackage= Boolean((user as any)?.package_id || (user as any)?.package);
   const isPaid    = hasPackage || role === 'admin' || ibStatus === 'active';
 
   async function handleLogout() {
@@ -45,7 +48,7 @@ export default function PortalSidebar() {
           <div style={{ minWidth:0 }}>
             <p style={{ color:'#fff', fontSize:'.78rem', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{user?.full_name ?? 'Member'}</p>
             <p style={{ fontSize:'.58rem', letterSpacing:'1.5px', textTransform:'uppercase', marginTop:'2px', color: isPaid ? '#D4AF37' : '#555' }}>
-              {isPaid ? ((user as any)?.package?.name ?? (ibStatus === 'active' ? 'IB Elite' : 'Admin')) : 'Free Account'}
+              {isPaid ? ((user as any)?.package?.name ?? (ibStatus === 'active' ? 'Elite Member' : 'Admin')) : 'Free Account'}
             </p>
           </div>
         </div>
@@ -55,7 +58,7 @@ export default function PortalSidebar() {
           <div style={{ marginTop:'10px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', padding:'7px 10px' }}>
             <p style={{ fontSize:'.58rem', letterSpacing:'1.5px', textTransform:'uppercase', color:'#F59E0B', marginBottom:'3px' }}>Free Account</p>
             <p style={{ fontSize:'.65rem', color:'#888', lineHeight:1.4 }}>
-              <a href="/portal/packages" style={{ color:'#D4AF37', textDecoration:'none' }}>Upgrade</a> or <a href="/portal/ib" style={{ color:'#D4AF37', textDecoration:'none' }}>apply IB</a> for full access.
+              <a href="/portal/packages" style={{ color:'#D4AF37', textDecoration:'none' }}>Upgrade</a> or <a href="/portal/ib" style={{ color:'#D4AF37', textDecoration:'none' }}>apply for Elite access</a>.
             </p>
           </div>
         ) : (
@@ -68,8 +71,9 @@ export default function PortalSidebar() {
 
       {/* Nav links */}
       <nav style={{ flex:1, padding:'10px 8px', overflowY:'auto' }}>
-        {NAV_ITEMS.map(({ label, href, emoji }) => {
+        {NAV_ITEMS.map(({ label, href, emoji, requiresElite, accessStatus }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
+          const locked = Boolean(requiresElite && !isPaid);
           return (
             <Link key={href} href={href} style={{
               display:'flex', alignItems:'center', gap:'10px',
@@ -82,7 +86,18 @@ export default function PortalSidebar() {
               onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLAnchorElement).style.color='#D4AF37'; (e.currentTarget as HTMLAnchorElement).style.background='rgba(212,175,55,.04)'; }}}
               onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLAnchorElement).style.color='#777'; (e.currentTarget as HTMLAnchorElement).style.background='transparent'; }}}>
               <span style={{ fontSize:'13px' }}>{emoji}</span>
-              <span>{label}</span>
+              <span style={{flex:1}}>{label}</span>
+              {locked && <span title="Activate Elite access to unlock" style={{fontSize:'10px',opacity:.7}}>🔒</span>}
+              {requiresElite && isPaid && <span title="Elite access active" style={{fontSize:'10px',color:'#34D399'}}>✓</span>}
+              {accessStatus && (
+                <span style={{
+                  fontSize:'.42rem', letterSpacing:'1px', padding:'2px 4px',
+                  color:ibStatus === 'active' ? '#34D399' : '#D4AF37',
+                  border:`1px solid ${ibStatus === 'active' ? 'rgba(52,211,153,.25)' : 'rgba(212,175,55,.2)'}`,
+                }}>
+                  {ibStatus === 'active' ? 'ACTIVE' : 'APPLY'}
+                </span>
+              )}
             </Link>
           );
         })}

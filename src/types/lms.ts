@@ -21,6 +21,14 @@ export interface LmsQuestion {
   sort_order: number;
 }
 
+export type LessonMediaType = 'video' | 'image';
+
+export interface LessonMedia {
+  type: LessonMediaType;
+  url: string | null;
+  storage_path?: string | null;
+}
+
 export interface LmsAssessment {
   id: string;
   course_id: string;
@@ -61,6 +69,10 @@ export interface LmsLesson {
   video_url: string | null;
   video_storage_path?: string | null;
   playback_url?: string | null;
+  intro_media?: LessonMedia | null;
+  outro_media?: LessonMedia | null;
+  intro_playback_url?: string | null;
+  outro_playback_url?: string | null;
   duration_seconds: number | null;
   sort_order: number;
   is_preview: boolean;
@@ -118,6 +130,7 @@ export interface LmsCoursePayload {
     eligible: boolean;
     issued: boolean;
     certificate_number: string | null;
+    verification_code: string | null;
     issued_at: string | null;
     has_template: boolean;
   };

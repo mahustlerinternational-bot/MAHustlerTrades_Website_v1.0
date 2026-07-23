@@ -15,7 +15,7 @@ const stamp=Date.now();
 const password='Codex-Lms-Smoke-9348!';
 const createdUsers=[];
 let courseId=null;
-let uploadedPath=null;
+const uploadedPaths=[];
 
 async function api(path,token,init={}){
   const headers=new Headers(init.headers);
@@ -87,27 +87,43 @@ try{
   assert.equal(reordered.status,200,JSON.stringify(reordered.body));
 
   const prepared=await api('/api/admin/lms/video-upload',admin.token,{method:'POST',body:JSON.stringify({course_id:courseId,file_name:'lesson-preview.mp4',content_type:'video/mp4',size:16})});
-  assert.equal(prepared.status,200,JSON.stringify(prepared.body));uploadedPath=prepared.body.path;
+  assert.equal(prepared.status,200,JSON.stringify(prepared.body));uploadedPaths.push(prepared.body.path);
   const uploaded=await publicClient.storage.from(prepared.body.bucket).uploadToSignedUrl(prepared.body.path,prepared.body.token,new Blob([new Uint8Array(16)],{type:'video/mp4'}),{contentType:'video/mp4'});
   if(uploaded.error)throw new Error(uploaded.error.message);
+  const imageBytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
+  const preparedImage=await api('/api/admin/lms/media-upload',admin.token,{method:'POST',body:JSON.stringify({course_id:courseId,media_type:'image',file_name:'lesson-outro.png',content_type:'image/png',size:imageBytes.length})});
+  assert.equal(preparedImage.status,200,JSON.stringify(preparedImage.body));uploadedPaths.push(preparedImage.body.path);
+  const uploadedImage=await publicClient.storage.from(preparedImage.body.bucket).uploadToSignedUrl(preparedImage.body.path,preparedImage.body.token,new Blob([imageBytes],{type:'image/png'}),{contentType:'image/png'});
+  if(uploadedImage.error)throw new Error(uploadedImage.error.message);
   const videoLesson=importedModule.lessons[0];
-  const attached=await api(`/api/admin/lms/lessons/${videoLesson.id}`,admin.token,{method:'PATCH',body:JSON.stringify({video_storage_path:uploadedPath,is_published:true})});
+  const attached=await api(`/api/admin/lms/lessons/${videoLesson.id}`,admin.token,{method:'PATCH',body:JSON.stringify({
+    intro_media:{type:'video',storage_path:prepared.body.path,url:null},
+    outro_media:{type:'image',storage_path:preparedImage.body.path,url:null},
+    is_published:true,
+  })});
   assert.equal(attached.status,200,JSON.stringify(attached.body));
   builder=await api(`/api/admin/lms/courses/${courseId}`,admin.token);
   const storedLesson=builder.body.modules.flatMap(item=>item.lessons).find(item=>item.id===videoLesson.id);
-  assert.match(storedLesson.playback_url,/token=/,'admin should receive a signed private video URL');
+  assert.equal(storedLesson.intro_media.type,'video');
+  assert.equal(storedLesson.outro_media.type,'image');
+  assert.match(storedLesson.intro_playback_url,/token=/,'admin should receive a signed private introduction video URL');
+  assert.match(storedLesson.outro_playback_url,/token=/,'admin should receive a signed private outro image URL');
   const bucket=await adminClient.storage.getBucket('course-media');
   if(bucket.error)throw bucket.error;assert.equal(bucket.data.public,false,'course-media bucket must be private');
 
   const memberWithVideo=await api(`/api/me/courses/${courseId}/lms`,member.token);
   const memberStoredLesson=memberWithVideo.body.modules.flatMap(item=>item.lessons).find(item=>item.id===videoLesson.id);
-  assert.ok(memberStoredLesson);assert.equal('video_storage_path' in memberStoredLesson,false,'storage path must not leak to members');assert.match(memberStoredLesson.playback_url,/token=/);
+  assert.ok(memberStoredLesson);assert.equal('video_storage_path' in memberStoredLesson,false,'legacy storage path must not leak to members');
+  assert.equal('storage_path' in memberStoredLesson.intro_media,false,'introduction storage path must not leak to members');
+  assert.equal('storage_path' in memberStoredLesson.outro_media,false,'outro storage path must not leak to members');
+  assert.match(memberStoredLesson.intro_playback_url,/token=/);
+  assert.match(memberStoredLesson.outro_playback_url,/token=/);
   const finalCourse=await api(`/api/admin/courses/${courseId}`,admin.token);
   assert.equal(Number(finalCourse.body.lesson_count),3,'lesson count trigger must stay synchronized');
 
-  console.log('LMS production smoke passed: auth, drafts, enrollment, import, reorder, private video, playback, progress, and lesson counts');
+  console.log('LMS production smoke passed: auth, drafts, enrollment, import, reorder, private introduction video, private outro image, signed playback, progress, and lesson counts');
 }finally{
-  if(uploadedPath)await adminClient.storage.from('course-media').remove([uploadedPath]);
+  if(uploadedPaths.length)await adminClient.storage.from('course-media').remove(uploadedPaths);
   if(courseId)await adminClient.from('courses').delete().eq('id',courseId);
   for(const id of createdUsers.reverse())await adminClient.auth.admin.deleteUser(id);
 }

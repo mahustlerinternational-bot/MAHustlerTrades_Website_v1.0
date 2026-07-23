@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 
 import {scoreAssessment, normalizeAssessmentAnswers} from '../src/lib/lms/assessmentScoring';
 import {validateAssessmentInput} from '../src/lib/lms/assessmentValidation';
+import {parseAssessmentText} from '../src/lib/lms/importAssessmentText';
 
 const valid = validateAssessmentInput({
   course_id: 'course-1',
@@ -76,4 +78,44 @@ assert.throws(
   /at least one question/i,
 );
 
-console.log('LMS assessment validation and scoring tests passed');
+const template = readFileSync('public/templates/lms-assessment-template.txt', 'utf8');
+const imported = parseAssessmentText(template, 'Fallback Assessment');
+assert.equal(imported.title, 'Risk Management Assessment');
+assert.equal(imported.passing_score, 75);
+assert.equal(imported.max_attempts, 3);
+assert.equal(imported.time_limit_minutes, 20);
+assert.equal(imported.is_required, true);
+assert.equal(imported.is_published, false);
+assert.equal(imported.randomize_questions, true);
+assert.equal(imported.questions.length, 3);
+assert.equal(imported.questions[0].question_type, 'single_choice');
+assert.equal(imported.questions[0].correct_answer.length, 1);
+assert.equal(imported.questions[1].question_type, 'multiple_choice');
+assert.equal(imported.questions[1].correct_answer.length, 2);
+assert.equal(imported.questions[2].question_type, 'true_false');
+assert.deepEqual(imported.questions[2].correct_answer, ['false']);
+
+const validatedImport = validateAssessmentInput({
+  course_id: 'course-1',
+  scope: 'final',
+  ...imported,
+  is_published: true,
+});
+assert.equal(validatedImport.questions.length, 3);
+assert.equal(validatedImport.questions[2].correct_answer[0], 'false');
+
+assert.throws(
+  () =>
+    parseAssessmentText(`
+TITLE: Broken Assessment
+## Question 1
+TYPE: single_choice
+PROMPT: Which option is correct?
+- [ ] First
+- [ ] Second
+`),
+  /mark at least one option/i,
+);
+assert.throws(() => parseAssessmentText('TITLE: No Questions'), /no questions found/i);
+
+console.log('LMS assessment importer, validation, and scoring tests passed');
