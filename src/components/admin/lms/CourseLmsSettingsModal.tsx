@@ -50,6 +50,15 @@ const PLACEHOLDER_KEYS = Object.keys(
   CERTIFICATE_PLACEHOLDER_LABELS,
 ) as CertificatePlaceholderKey[];
 
+const CERTIFICATE_COLOR_PRESETS = [
+  {label: 'Black', value: '#000000'},
+  {label: 'Charcoal', value: '#474747'},
+  {label: 'White', value: '#FFFFFF'},
+  {label: 'Gold', value: '#D4AF37'},
+  {label: 'Navy', value: '#14213D'},
+  {label: 'Burgundy', value: '#7A1E2C'},
+] as const;
+
 export default function CourseLmsSettingsModal({
   course,
   onClose,
@@ -414,14 +423,7 @@ export default function CourseLmsSettingsModal({
                           flexDirection: isQr ? 'column' : undefined,
                           whiteSpace: isQr ? 'normal' : 'nowrap',
                           padding: isQr ? '3px' : '3px 5px',
-                          color:
-                            key === 'member_name'
-                              ? '#000000'
-                              : key === 'course_title'
-                                ? '#D4AF37'
-                              : key === 'certificate_title'
-                                ? '#FAFAFA'
-                                : '#D6D6D6',
+                          color: position.color,
                           borderColor: active ? '#D4AF37' : 'rgba(66,153,225,.75)',
                           background: active
                             ? 'rgba(212,175,55,.18)'
@@ -459,35 +461,75 @@ export default function CourseLmsSettingsModal({
 
                 <div style={placementControls}>
                   {!selectedIsQr && (
-                    <div>
-                      <span style={labelStyle}>Text alignment</span>
-                      <div style={{display: 'flex', gap: '5px'}}>
-                        {(
-                          [
-                            ['left', AlignLeft],
-                            ['center', AlignCenter],
-                            ['right', AlignRight],
-                          ] as const
-                        ).map(([alignment, Icon]) => (
-                          <button
-                            type="button"
-                            key={alignment}
-                            onClick={() =>
-                              updatePlaceholder(selectedPlaceholder, {align: alignment})
+                    <>
+                      <div>
+                        <span style={labelStyle}>Font color</span>
+                        <div style={colorPickerRow}>
+                          <input
+                            type="color"
+                            value={selected.color}
+                            onChange={event =>
+                              updatePlaceholder(selectedPlaceholder, {
+                                color: event.target.value.toUpperCase(),
+                              })
                             }
-                            aria-label={`${alignment} align`}
-                            style={{
-                              ...alignmentButton,
-                              color: selected.align === alignment ? '#050505' : '#888',
-                              background:
-                                selected.align === alignment ? '#D4AF37' : '#0A0A0A',
-                            }}
-                          >
-                            <Icon size={13} />
-                          </button>
-                        ))}
+                            aria-label={`${CERTIFICATE_PLACEHOLDER_LABELS[selectedPlaceholder]} font color`}
+                            style={colorPicker}
+                          />
+                          <span style={colorCode}>{selected.color}</span>
+                        </div>
+                        <div style={colorPresets}>
+                          {CERTIFICATE_COLOR_PRESETS.map(preset => (
+                            <button
+                              type="button"
+                              key={preset.value}
+                              onClick={() =>
+                                updatePlaceholder(selectedPlaceholder, {color: preset.value})
+                              }
+                              aria-label={`Use ${preset.label}`}
+                              title={preset.label}
+                              style={{
+                                ...colorPreset,
+                                background: preset.value,
+                                borderColor:
+                                  selected.color === preset.value
+                                    ? '#D4AF37'
+                                    : 'rgba(255,255,255,.24)',
+                              }}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                      <div>
+                        <span style={labelStyle}>Text alignment</span>
+                        <div style={{display: 'flex', gap: '5px'}}>
+                          {(
+                            [
+                              ['left', AlignLeft],
+                              ['center', AlignCenter],
+                              ['right', AlignRight],
+                            ] as const
+                          ).map(([alignment, Icon]) => (
+                            <button
+                              type="button"
+                              key={alignment}
+                              onClick={() =>
+                                updatePlaceholder(selectedPlaceholder, {align: alignment})
+                              }
+                              aria-label={`${alignment} align`}
+                              style={{
+                                ...alignmentButton,
+                                color: selected.align === alignment ? '#050505' : '#888',
+                                background:
+                                  selected.align === alignment ? '#D4AF37' : '#0A0A0A',
+                              }}
+                            >
+                              <Icon size={13} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   )}
                   <RangeControl
                     label={`Horizontal ${Math.round(selected.x * 100)}%`}
@@ -797,6 +839,38 @@ const alignmentButton: CSSProperties = {
   placeItems: 'center',
   border: '1px solid rgba(255,255,255,.1)',
   cursor: 'pointer',
+};
+const colorPickerRow: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '7px',
+};
+const colorPicker: CSSProperties = {
+  width: '34px',
+  height: '27px',
+  padding: '2px',
+  background: '#080808',
+  border: '1px solid rgba(255,255,255,.18)',
+  cursor: 'pointer',
+};
+const colorCode: CSSProperties = {
+  fontFamily: 'JetBrains Mono,monospace',
+  fontSize: '.56rem',
+  color: '#AAA',
+};
+const colorPresets: CSSProperties = {
+  display: 'flex',
+  gap: '5px',
+  marginTop: '6px',
+  flexWrap: 'wrap',
+};
+const colorPreset: CSSProperties = {
+  width: '18px',
+  height: '18px',
+  border: '2px solid',
+  borderRadius: '50%',
+  cursor: 'pointer',
+  boxShadow: '0 0 0 1px rgba(0,0,0,.65)',
 };
 const defaultCertificate: CSSProperties = {
   position: 'absolute',

@@ -13,6 +13,7 @@ export type CertificatePlaceholderLayout = {
   y: number;
   align: CertificateTextAlignment;
   font_size: number;
+  color: string;
 };
 
 export type CertificateLayout = Record<
@@ -32,12 +33,12 @@ export const CERTIFICATE_PLACEHOLDER_LABELS: Record<CertificatePlaceholderKey, s
 // X and Y are normalized to the certificate canvas. Y is measured from the top
 // in the editor and converted to PDF coordinates by the certificate generator.
 export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayout = {
-  certificate_title: {x: 0.5, y: 0.32, align: 'center', font_size: 30},
-  member_name: {x: 0.5, y: 0.51, align: 'center', font_size: 28},
-  course_title: {x: 0.5, y: 0.67, align: 'center', font_size: 20},
-  issued_date: {x: 0.5, y: 0.78, align: 'center', font_size: 10},
-  certificate_id: {x: 0.5, y: 0.92, align: 'center', font_size: 9},
-  verification_qr: {x: 0.1, y: 0.84, align: 'center', font_size: 58},
+  certificate_title: {x: 0.5, y: 0.32, align: 'center', font_size: 30, color: '#0F0F0F'},
+  member_name: {x: 0.5, y: 0.51, align: 'center', font_size: 28, color: '#000000'},
+  course_title: {x: 0.5, y: 0.67, align: 'center', font_size: 20, color: '#D4AF37'},
+  issued_date: {x: 0.5, y: 0.78, align: 'center', font_size: 10, color: '#474747'},
+  certificate_id: {x: 0.5, y: 0.92, align: 'center', font_size: 9, color: '#474747'},
+  verification_qr: {x: 0.1, y: 0.84, align: 'center', font_size: 58, color: '#000000'},
 };
 
 const PLACEHOLDER_KEYS = Object.keys(
@@ -51,6 +52,11 @@ function finiteNumber(value: unknown, fallback: number) {
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function normalizeColor(value: unknown, fallback: string) {
+  const candidate = typeof value === 'string' ? value.trim() : '';
+  return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate.toUpperCase() : fallback;
 }
 
 export function normalizeCertificateLayout(value: unknown): CertificateLayout {
@@ -83,6 +89,10 @@ export function normalizeCertificateLayout(value: unknown): CertificateLayout {
               key === 'verification_qr' ? 96 : 48,
             ),
           ),
+          color:
+            key === 'verification_qr'
+              ? '#000000'
+              : normalizeColor(candidate.color, defaults.color),
         },
       ];
     }),

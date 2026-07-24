@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 
 import {scoreAssessment, normalizeAssessmentAnswers} from '../src/lib/lms/assessmentScoring';
 import {validateAssessmentInput} from '../src/lib/lms/assessmentValidation';
+import {normalizeCertificateLayout} from '../src/lib/lms/certificateLayout';
 import {parseAssessmentText} from '../src/lib/lms/importAssessmentText';
 
 const valid = validateAssessmentInput({
@@ -117,5 +118,19 @@ PROMPT: Which option is correct?
   /mark at least one option/i,
 );
 assert.throws(() => parseAssessmentText('TITLE: No Questions'), /no questions found/i);
+
+const certificateLayout = normalizeCertificateLayout({
+  member_name: {color: '#1a2b3c'},
+  course_title: {color: 'not-a-color'},
+  verification_qr: {color: '#D4AF37'},
+});
+assert.equal(certificateLayout.member_name.color, '#1A2B3C');
+assert.equal(certificateLayout.course_title.color, '#D4AF37');
+assert.equal(certificateLayout.verification_qr.color, '#000000');
+assert.equal(
+  normalizeCertificateLayout(null).member_name.color,
+  '#000000',
+  'member names must default to black',
+);
 
 console.log('LMS assessment importer, validation, and scoring tests passed');

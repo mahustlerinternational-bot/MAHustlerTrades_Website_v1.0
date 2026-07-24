@@ -173,6 +173,13 @@ function positionedText(
   });
 }
 
+function certificateColor(value: string) {
+  const red = Number.parseInt(value.slice(1, 3), 16) / 255;
+  const green = Number.parseInt(value.slice(3, 5), 16) / 255;
+  const blue = Number.parseInt(value.slice(5, 7), 16) / 255;
+  return rgb(red, green, blue);
+}
+
 async function createCertificateDocument(record: CertificateRecord, requestOrigin?: string) {
   const templatePath = record.template_path_snapshot;
   let document: PDFDocument;
@@ -214,7 +221,6 @@ async function createCertificateDocument(record: CertificateRecord, requestOrigi
   const regular = await document.embedFont(StandardFonts.Helvetica);
   const bold = await document.embedFont(StandardFonts.HelveticaBold);
   const gold = rgb(0.83, 0.69, 0.22);
-  const black = rgb(0, 0, 0);
   const ink = hasTemplate ? rgb(0.06, 0.06, 0.06) : rgb(0.95, 0.95, 0.95);
   const muted = hasTemplate ? rgb(0.28, 0.28, 0.28) : rgb(0.62, 0.62, 0.62);
 
@@ -250,16 +256,44 @@ async function createCertificateDocument(record: CertificateRecord, requestOrigi
   }).format(new Date(record.issued_at));
   const layout = normalizeCertificateLayout(metadata.certificate_layout);
 
-  positionedText(page, certificateTitle, layout.certificate_title, bold, ink, width * 0.82);
-  positionedText(page, memberName, layout.member_name, bold, black, width * 0.82);
-  positionedText(page, courseTitle, layout.course_title, bold, gold, width * 0.82);
-  positionedText(page, `Issued ${issuedDate}`, layout.issued_date, regular, muted, width * 0.82);
+  positionedText(
+    page,
+    certificateTitle,
+    layout.certificate_title,
+    bold,
+    certificateColor(layout.certificate_title.color),
+    width * 0.82,
+  );
+  positionedText(
+    page,
+    memberName,
+    layout.member_name,
+    bold,
+    certificateColor(layout.member_name.color),
+    width * 0.82,
+  );
+  positionedText(
+    page,
+    courseTitle,
+    layout.course_title,
+    bold,
+    certificateColor(layout.course_title.color),
+    width * 0.82,
+  );
+  positionedText(
+    page,
+    `Issued ${issuedDate}`,
+    layout.issued_date,
+    regular,
+    certificateColor(layout.issued_date.color),
+    width * 0.82,
+  );
   positionedText(
     page,
     `Certificate ID: ${record.certificate_number}`,
     layout.certificate_id,
     bold,
-    muted,
+    certificateColor(layout.certificate_id.color),
     width * 0.72,
   );
 
