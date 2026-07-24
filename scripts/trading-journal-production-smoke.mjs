@@ -72,6 +72,16 @@ try {
   assert.ifError(signInError);
   token = signedIn.session.access_token;
 
+  const freeAccess = await api('/api/me/journal/trades');
+  assert.equal(freeAccess.response.status, 403);
+  assert.match(freeAccess.body.error, /Elite access/i);
+
+  const {error: activateError} = await admin
+    .from('profiles')
+    .update({ib_status: 'active'})
+    .eq('id', userId);
+  assert.ifError(activateError);
+
   const empty = await api('/api/me/journal/trades');
   assert.equal(empty.response.status, 200);
   assert.deepEqual(empty.body.trades, []);
@@ -162,7 +172,7 @@ try {
   const cleaned = await api('/api/me/journal/trades');
   assert.equal(cleaned.body.trades.length, 0);
 
-  console.log('Trading Journal production CRUD, screenshot and CSV smoke tests passed.');
+  console.log('Trading Journal free-member access gate, Elite CRUD, screenshot and CSV production tests passed.');
 } finally {
   if (userId) {
     await admin.from('trading_journal_trades').delete().eq('user_id', userId);
@@ -178,4 +188,3 @@ try {
     await admin.auth.admin.deleteUser(userId);
   }
 }
-

@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { label:'Dashboard',  href:'/portal/dashboard', emoji:'📊' },
   { label:'My Courses', href:'/portal/courses',   emoji:'📚' },
   { label:'Elite Events', href:'/portal/events',  emoji:'📅' },
-  { label:'My Trading Journal', href:'/portal/trading-journal', emoji:'📓' },
+  { label:'My Trading Journal', href:'/portal/trading-journal', emoji:'📓', requiresElite:true },
   { label:'Packages',   href:'/portal/packages',  emoji:'💎' },
   { label:'Elite Tools', href:'/portal/market-tools', emoji:'📈', requiresElite:true },
   { label:'Elite Access', href:'/portal/ib',      emoji:'🔗', accessStatus:true },

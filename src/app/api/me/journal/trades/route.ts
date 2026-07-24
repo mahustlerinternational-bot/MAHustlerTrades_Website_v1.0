@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 
+import {hasTradingJournalAccess, TRADING_JOURNAL_ACCESS_ERROR} from '@/lib/journal/access';
 import {JOURNAL_SCREENSHOT_BUCKET} from '@/lib/journal/storage';
 import {journalValidationMessage, parseJournalTrade} from '@/lib/journal/validation';
 import {requireAuthSession, supabaseAdmin} from '@/lib/supabase/server';
@@ -54,6 +55,9 @@ async function journalPayload(userId: string) {
 export async function GET(req: NextRequest) {
   const session = await requireAuthSession(req);
   if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  if (!(await hasTradingJournalAccess(session.userId))) {
+    return NextResponse.json({error: TRADING_JOURNAL_ACCESS_ERROR}, {status: 403});
+  }
   try {
     return NextResponse.json({trades: await journalPayload(session.userId)});
   } catch (error) {
@@ -67,6 +71,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await requireAuthSession(req);
   if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  if (!(await hasTradingJournalAccess(session.userId))) {
+    return NextResponse.json({error: TRADING_JOURNAL_ACCESS_ERROR}, {status: 403});
+  }
   try {
     const trade = parseJournalTrade(await req.json());
     const {data, error} = await supabaseAdmin
@@ -80,4 +87,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({error: journalValidationMessage(error)}, {status: 400});
   }
 }
-

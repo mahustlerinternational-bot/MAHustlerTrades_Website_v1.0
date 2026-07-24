@@ -1,6 +1,7 @@
 import {NextRequest, NextResponse} from 'next/server';
 
 import {journalCsvToObjects} from '@/lib/journal/csv';
+import {hasTradingJournalAccess, TRADING_JOURNAL_ACCESS_ERROR} from '@/lib/journal/access';
 import {journalValidationMessage, parseJournalTrade} from '@/lib/journal/validation';
 import {requireAuthSession, supabaseAdmin} from '@/lib/supabase/server';
 
@@ -10,6 +11,9 @@ const MAX_IMPORT_ROWS = 1000;
 export async function POST(req: NextRequest) {
   const session = await requireAuthSession(req);
   if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  if (!(await hasTradingJournalAccess(session.userId))) {
+    return NextResponse.json({error: TRADING_JOURNAL_ACCESS_ERROR}, {status: 403});
+  }
   try {
     const body = await req.json();
     const csv = String(body.csv ?? '');
@@ -44,4 +48,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

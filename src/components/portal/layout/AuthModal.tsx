@@ -1,6 +1,6 @@
 'use client';
 // src/components/portal/layout/AuthModal.tsx
-import { useState }       from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter }      from 'next/navigation';
 import { useForm }        from 'react-hook-form';
 import { zodResolver }    from '@hookform/resolvers/zod';
@@ -8,6 +8,12 @@ import { z }              from 'zod';
 import { toast }          from 'sonner';
 import { supabase } from '@/lib/supabase/client';
 import { useAuthStore }   from '@/lib/auth/store';
+import EmailVerificationPanel, {
+  readPendingEmailVerification,
+  savePendingEmailVerification,
+  type PendingEmailVerification,
+} from '@/components/portal/layout/EmailVerificationPanel';
+import {authFetch} from '@/lib/utils/authFetch';
 
 const loginSchema = z.object({
   email:    z.string().email('Enter a valid email'),
@@ -52,19 +58,34 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
   const [tab, setTab]       = useState<'login'|'register'>(defaultTab);
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingVerification, setPendingVerification] =
+    useState<PendingEmailVerification | null>(null);
 
   const loginForm = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
   const regForm   = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) });
 
-  const safeReturn = returnTo === '/portal' ? '/portal/dashboard' : returnTo;
+  const safeReturn =
+    returnTo.startsWith('/portal') && !returnTo.startsWith('//') && returnTo !== '/portal'
+      ? returnTo
+      : '/portal/dashboard';
+
+  useEffect(() => {
+    setPendingVerification(readPendingEmailVerification());
+  }, []);
 
   async function onLogin(values: LoginForm) {
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email: values.email, password: values.password });
       if (error) {
+        const normalized = error.message.toLowerCase();
         if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Load failed')) {
           toast.error('Cannot reach authentication server. Check your Supabase URL in .env.local and restart the server.');
+        } else if (normalized.includes('email not confirmed') || normalized.includes('email_not_confirmed')) {
+          const pending = {email: values.email.trim().toLowerCase(), fullName: ''};
+          savePendingEmailVerification(pending);
+          setPendingVerification(pending);
+          toast.error('Verify your email address before signing in.');
         } else if (error.message.includes('Invalid login')) {
           toast.error('Invalid email or password.');
         } else { toast.error(error.message); }
@@ -72,13 +93,21 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
       }
       // .maybeSingle() instead of .single() — older accounts created before the
       // profile-creation fix may not have a profiles row yet. Don't hard-fail login.
-      const { data: profile } = await supabase.from('profiles').select('*, package:packages(name,slug)').eq('id', data.user!.id).maybeSingle();
+      let { data: profile } = await supabase.from('profiles').select('*, package:packages(name,slug)').eq('id', data.user!.id).maybeSingle();
       if (!profile) {
-        toast.error('Your account is missing profile data. Contact support to resolve this.');
-        await supabase.auth.signOut();
-        return;
+        const completion = await authFetch('/api/auth/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            full_name: String(data.user?.user_metadata?.full_name ?? ''),
+          }),
+        });
+        const result = await completion.json();
+        if (!completion.ok) throw new Error(result.error ?? 'Profile activation failed');
+        profile = result.profile;
       }
       setUser(profile as any);
+      savePendingEmailVerification(null);
       toast.success('Welcome back!');
       setTimeout(() => { router.refresh(); router.push(safeReturn); }, 150);
     } catch (error) {
@@ -89,34 +118,29 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
   async function onRegister(values: RegisterForm) {
     setLoading(true);
     try {
-      // Server-side route creates BOTH the auth user and the matching profiles
-      // row in one request — we no longer depend on the database trigger,
-      // which has proven unreliable on this Supabase project.
-      const res  = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: values.email, password: values.password, full_name: values.full_name }),
+      const email = values.email.trim().toLowerCase();
+      const fullName = values.full_name.trim();
+      const redirect = new URL('/auth/confirm', window.location.origin);
+      redirect.searchParams.set('next', safeReturn);
+      const {data, error} = await supabase.auth.signUp({
+        email,
+        password: values.password,
+        options: {
+          data: {full_name: fullName},
+          emailRedirectTo: redirect.toString(),
+        },
       });
-      const body = await res.json().catch(() => null) as { error?: unknown } | null;
-
-      if (!res.ok) {
-        toast.error(getErrorMessage(body?.error, 'Failed to create account. Please try again.'));
-        return;
-      }
-
-      // Account + profile now exist server-side. Sign in client-side to set the session.
-      const { data, error } = await supabase.auth.signInWithPassword({ email: values.email, password: values.password });
-      if (error) {
-        toast.error('Account created, but automatic sign-in failed. Please sign in manually.');
-        setTab('login');
-        return;
-      }
+      if (error) throw error;
       if (data.session) {
-        const { data: profile } = await supabase.from('profiles').select('*, package:packages(name,slug)').eq('id', data.user!.id).maybeSingle();
-        setUser(profile as any);
-        toast.success('Account created! Welcome to MAHustler Trades.');
-        setTimeout(() => { router.refresh(); router.push(safeReturn); }, 150);
+        await supabase.auth.signOut({scope: 'local'});
+        throw new Error(
+          'Email confirmation is not enforced in Supabase. Enable Confirm Email before accepting registrations.',
+        );
       }
+      const pending = {email, fullName};
+      savePendingEmailVerification(pending);
+      setPendingVerification(pending);
+      toast.success('Account created. Check your email to verify your address.');
     } catch (error) {
       toast.error(getErrorMessage(error, 'Unable to create your account. Please check your connection and try again.'));
     } finally { setLoading(false); }
@@ -138,18 +162,19 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
 
         {/* Card */}
         <div style={{ background:'rgba(17,17,17,.95)', border:'1px solid rgba(212,175,55,.2)', backdropFilter:'blur(20px)' }}>
-          {/* Tabs */}
-          <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
-            {(['login','register'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                flex:1, padding:'14px', background:'none', border:'none', cursor:'pointer',
-                fontFamily:'Cinzel,serif', fontSize:'.62rem', letterSpacing:'3px', textTransform:'uppercase',
-                color: tab===t ? '#D4AF37' : '#555',
-                borderBottom: tab===t ? '2px solid #D4AF37' : '2px solid transparent',
-                marginBottom:'-1px', transition:'all .2s',
-              }}>{t === 'login' ? 'Sign In' : 'Register'}</button>
-            ))}
-          </div>
+          {!pendingVerification && (
+            <div style={{ display:'flex', borderBottom:'1px solid rgba(255,255,255,.05)' }}>
+              {(['login','register'] as const).map(t => (
+                <button key={t} onClick={() => setTab(t)} style={{
+                  flex:1, padding:'14px', background:'none', border:'none', cursor:'pointer',
+                  fontFamily:'Cinzel,serif', fontSize:'.62rem', letterSpacing:'3px', textTransform:'uppercase',
+                  color: tab===t ? '#D4AF37' : '#555',
+                  borderBottom: tab===t ? '2px solid #D4AF37' : '2px solid transparent',
+                  marginBottom:'-1px', transition:'all .2s',
+                }}>{t === 'login' ? 'Sign In' : 'Register'}</button>
+              ))}
+            </div>
+          )}
 
           <div style={{ padding:'2rem' }}>
             {notice === 'admin-session' && (
@@ -159,8 +184,25 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
                 and member accounts at the same time.
               </div>
             )}
+            {notice === 'email-verification-failed' && !pendingVerification && (
+              <div style={{ marginBottom:'1.2rem', padding:'11px 13px', background:'rgba(255,71,87,.06)', border:'1px solid rgba(255,71,87,.22)', color:'#D98289', fontSize:'.68rem', lineHeight:1.6 }}>
+                The verification link is invalid or expired. Sign in to request a new email, or
+                register again using the same address.
+              </div>
+            )}
+            {pendingVerification && (
+              <EmailVerificationPanel
+                pending={pendingVerification}
+                returnTo={safeReturn}
+                onChangeEmail={() => {
+                  savePendingEmailVerification(null);
+                  setPendingVerification(null);
+                  setTab('register');
+                }}
+              />
+            )}
             {/* ── Login ── */}
-            {tab === 'login' && (
+            {!pendingVerification && tab === 'login' && (
               <form onSubmit={loginForm.handleSubmit(onLogin)} style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
                 <div>
                   <label style={lblS}>Email Address</label>
@@ -194,7 +236,7 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
             )}
 
             {/* ── Register ── */}
-            {tab === 'register' && (
+            {!pendingVerification && tab === 'register' && (
               <form onSubmit={regForm.handleSubmit(onRegister)} style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
                 <div>
                   <label style={lblS}>Full Name</label>
@@ -239,12 +281,12 @@ export default function AuthModal({ defaultTab, returnTo, notice }: Props) {
             )}
 
             {/* IB access note */}
-            <div style={{ marginTop:'1.5rem', paddingTop:'1.25rem', borderTop:'1px solid rgba(255,255,255,.04)', textAlign:'center' }}>
+            {!pendingVerification && <div style={{ marginTop:'1.5rem', paddingTop:'1.25rem', borderTop:'1px solid rgba(255,255,255,.04)', textAlign:'center' }}>
               <p style={{ fontSize:'.68rem', color:'#444' }}>
                 Get access without a subscription via{' '}
                 <a href="/portal/ib" style={{ color:'#D4AF37', textDecoration:'none' }}>Elite Access Registration →</a>
               </p>
-            </div>
+            </div>}
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 
+import {hasTradingJournalAccess, TRADING_JOURNAL_ACCESS_ERROR} from '@/lib/journal/access';
 import {
   cleanJournalFileName,
   ensureJournalScreenshotBucket,
@@ -23,6 +24,9 @@ async function ownsTrade(userId: string, tradeId: string) {
 export async function POST(req: NextRequest) {
   const session = await requireAuthSession(req);
   if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  if (!(await hasTradingJournalAccess(session.userId))) {
+    return NextResponse.json({error: TRADING_JOURNAL_ACCESS_ERROR}, {status: 403});
+  }
   try {
     const body = await req.json();
     const action = String(body.action ?? 'prepare');
@@ -101,4 +105,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

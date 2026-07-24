@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test:telegram-parser": "tsx scripts/test-telegram-parser.ts",
     "test:assistant-knowledge": "tsx scripts/test-assistant-knowledge.ts",
+    "test:email-verification-production": "node --env-file=.env.local scripts/email-verification-production-smoke.mjs",
     "test:lms-import": "tsx scripts/test-lms-import.ts",
     "test:lms-assessments": "tsx scripts/test-lms-assessments.ts",
     "test:lms-production": "node scripts/lms-production-smoke.mjs",

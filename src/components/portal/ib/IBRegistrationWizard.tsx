@@ -180,6 +180,8 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
                 { icon: '🛡',  label: 'Caution Zone Alerts', desc: 'Real-time risk updates'   },
                 { icon: '🎓', label: 'All Academy Courses', desc: 'Complete course library'   },
                 { icon: '🏆', label: 'VIP Event Access',    desc: 'Priority registration'     },
+                { icon: '🔐', label: 'Elite Vault',         desc: 'Private tools and resources' },
+                { icon: '📈', label: 'Elite Tools',         desc: 'Professional market workspace' },
               ].map(({ icon, label, desc }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.05)', padding: '12px' }}>
                   <span style={{ fontSize: '1rem' }}>{icon}</span>

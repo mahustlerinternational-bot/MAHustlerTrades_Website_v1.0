@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from 'next/server';
 
+import {hasTradingJournalAccess, TRADING_JOURNAL_ACCESS_ERROR} from '@/lib/journal/access';
 import {JOURNAL_SCREENSHOT_BUCKET} from '@/lib/journal/storage';
 import {journalValidationMessage, parseJournalTrade} from '@/lib/journal/validation';
 import {requireAuthSession, supabaseAdmin} from '@/lib/supabase/server';
@@ -10,6 +11,9 @@ export async function PATCH(
 ) {
   const session = await requireAuthSession(req);
   if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  if (!(await hasTradingJournalAccess(session.userId))) {
+    return NextResponse.json({error: TRADING_JOURNAL_ACCESS_ERROR}, {status: 403});
+  }
   try {
     const {id} = await params;
     const trade = parseJournalTrade(await req.json());
@@ -34,6 +38,9 @@ export async function DELETE(
 ) {
   const session = await requireAuthSession(req);
   if (!session) return NextResponse.json({error: 'Unauthorized'}, {status: 401});
+  if (!(await hasTradingJournalAccess(session.userId))) {
+    return NextResponse.json({error: TRADING_JOURNAL_ACCESS_ERROR}, {status: 403});
+  }
   const {id} = await params;
   const {data: trade} = await supabaseAdmin
     .from('trading_journal_trades')
@@ -57,4 +64,3 @@ export async function DELETE(
   if (paths.length) await supabaseAdmin.storage.from(JOURNAL_SCREENSHOT_BUCKET).remove(paths);
   return NextResponse.json({ok: true});
 }
-
