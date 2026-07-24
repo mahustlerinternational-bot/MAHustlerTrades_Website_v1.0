@@ -58,7 +58,7 @@
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                   <tr>
                     <td align="center" style="background:#d4af37;border:1px solid #f6d65f;">
-                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 29px;font-family:Georgia,'Times New Roman',serif;font-size:12px;font-weight:bold;letter-spacing:2px;color:#050505;text-decoration:none;">
+                      <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email&amp;next=%2Fportal%2Fdashboard" style="display:inline-block;padding:15px 29px;font-family:Georgia,'Times New Roman',serif;font-size:12px;font-weight:bold;letter-spacing:2px;color:#050505;text-decoration:none;">
                         VERIFY MY EMAIL ADDRESS
                       </a>
                     </td>

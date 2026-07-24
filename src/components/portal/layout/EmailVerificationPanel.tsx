@@ -134,6 +134,17 @@ export default function EmailVerificationPanel({
       </p>
       <p style={email}>{pending.email}</p>
 
+      <div style={deliveryAdvice} role="note">
+        <MailCheck size={17} style={{flexShrink: 0}} />
+        <div>
+          <strong style={deliveryAdviceTitle}>CAN&apos;T FIND THE EMAIL?</strong>
+          <span style={deliveryAdviceCopy}>
+            Check your Spam, Junk, or Promotions folder. If you find it there,
+            mark it as <strong>Not spam</strong> so future account emails reach your inbox.
+          </span>
+        </div>
+      </div>
+
       <div style={codePanel}>
         <label style={codeLabel}>ENTER YOUR 6-DIGIT CODE</label>
         <input
@@ -157,7 +168,6 @@ export default function EmailVerificationPanel({
 
       <p style={linkHint}>
         You can also click <strong>Verify My Email Address</strong> inside the email.
-        Check Spam or Promotions if it is not in your inbox.
       </p>
 
       <div style={actions}>
@@ -181,6 +191,9 @@ const eyebrow: React.CSSProperties = {fontFamily: 'Cinzel,serif', fontSize: '.52
 const title: React.CSSProperties = {fontFamily: 'Cinzel,serif', fontSize: '1.35rem', marginTop: '8px'};
 const copy: React.CSSProperties = {fontSize: '.7rem', color: '#777', lineHeight: 1.65, marginTop: '10px'};
 const email: React.CSSProperties = {fontFamily: 'JetBrains Mono,monospace', color: '#D4AF37', fontSize: '.72rem', overflowWrap: 'anywhere', marginTop: '5px'};
+const deliveryAdvice: React.CSSProperties = {display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '16px', padding: '12px 13px', textAlign: 'left', color: '#D4AF37', border: '1px solid rgba(212,175,55,.22)', background: 'rgba(212,175,55,.055)'};
+const deliveryAdviceTitle: React.CSSProperties = {display: 'block', fontFamily: 'Cinzel,serif', fontSize: '.54rem', letterSpacing: '1.2px', color: '#E2C45C'};
+const deliveryAdviceCopy: React.CSSProperties = {display: 'block', marginTop: '4px', fontSize: '.58rem', lineHeight: 1.6, color: '#8A8170'};
 const codePanel: React.CSSProperties = {marginTop: '20px', padding: '17px', border: '1px solid rgba(212,175,55,.2)', background: 'linear-gradient(135deg,rgba(212,175,55,.055),rgba(255,255,255,.012))'};
 const codeLabel: React.CSSProperties = {display: 'block', color: '#777', fontSize: '.5rem', letterSpacing: '2px', marginBottom: '9px'};
 const codeInput: React.CSSProperties = {width: '100%', padding: '12px', border: '1px solid rgba(212,175,55,.34)', outline: 'none', background: '#090909', color: '#FFD75A', fontFamily: 'JetBrains Mono,monospace', fontSize: '1.5rem', fontWeight: 700, textAlign: 'center', letterSpacing: '10px'};
