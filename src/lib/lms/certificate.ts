@@ -214,6 +214,7 @@ async function createCertificateDocument(record: CertificateRecord, requestOrigi
   const regular = await document.embedFont(StandardFonts.Helvetica);
   const bold = await document.embedFont(StandardFonts.HelveticaBold);
   const gold = rgb(0.83, 0.69, 0.22);
+  const black = rgb(0, 0, 0);
   const ink = hasTemplate ? rgb(0.06, 0.06, 0.06) : rgb(0.95, 0.95, 0.95);
   const muted = hasTemplate ? rgb(0.28, 0.28, 0.28) : rgb(0.62, 0.62, 0.62);
 
@@ -250,7 +251,7 @@ async function createCertificateDocument(record: CertificateRecord, requestOrigi
   const layout = normalizeCertificateLayout(metadata.certificate_layout);
 
   positionedText(page, certificateTitle, layout.certificate_title, bold, ink, width * 0.82);
-  positionedText(page, memberName, layout.member_name, bold, gold, width * 0.82);
+  positionedText(page, memberName, layout.member_name, bold, black, width * 0.82);
   positionedText(page, courseTitle, layout.course_title, bold, gold, width * 0.82);
   positionedText(page, `Issued ${issuedDate}`, layout.issued_date, regular, muted, width * 0.82);
   positionedText(

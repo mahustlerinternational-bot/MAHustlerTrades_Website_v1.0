@@ -415,8 +415,10 @@ export default function CourseLmsSettingsModal({
                           whiteSpace: isQr ? 'normal' : 'nowrap',
                           padding: isQr ? '3px' : '3px 5px',
                           color:
-                            key === 'member_name' || key === 'course_title'
-                              ? '#D4AF37'
+                            key === 'member_name'
+                              ? '#000000'
+                              : key === 'course_title'
+                                ? '#D4AF37'
                               : key === 'certificate_title'
                                 ? '#FAFAFA'
                                 : '#D6D6D6',
