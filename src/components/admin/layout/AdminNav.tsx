@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/auth/store';
 import { useRouter } from 'next/navigation';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 
 export default function AdminNav() {
   const { user, logout } = useAuthStore();
@@ -30,6 +31,7 @@ export default function AdminNav() {
 
       {/* Right: user + actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <ThemeToggle />
         <Link href="/" style={{ fontSize: '0.65rem', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#555', textDecoration: 'none', transition: 'color .2s' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#D4AF37')}
           onMouseLeave={e => (e.currentTarget.style.color = '#555')}>

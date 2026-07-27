@@ -26,6 +26,7 @@ import RiskLab from '@/components/portal/market-tools/RiskLab';
 import TradingViewWidget from '@/components/portal/market-tools/TradingViewWidget';
 import {useEliteWorkspace} from '@/components/portal/market-tools/useEliteWorkspace';
 import {useMarketCalendar} from '@/components/portal/market-tools/useMarketCalendar';
+import {usePortalTheme} from '@/components/theme/PortalThemeProvider';
 import type {WorkspacePreferences} from '@/lib/market-tools/workspace';
 import {authFetch} from '@/lib/utils/authFetch';
 
@@ -58,6 +59,7 @@ export default function MarketToolsPage() {
   const [denied, setDenied] = useState(false);
   const [accessError, setAccessError] = useState('');
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const {theme} = usePortalTheme();
   const {workspace, status, message, updatePreferences, updateAnalysis} = useEliteWorkspace();
   const calendar = useMarketCalendar(!accessLoading && !denied && !accessError);
 
@@ -274,10 +276,10 @@ export default function MarketToolsPage() {
                   symbol: 'OANDA:XAUUSD',
                   interval: preferences.interval,
                   timezone: preferences.timezone,
-                  theme: 'dark',
+                  theme,
                   style: '1',
                   locale: 'en',
-                  backgroundColor: '#0D0D0D',
+                  backgroundColor: theme === 'light' ? '#FAF7F0' : '#0D0D0D',
                   gridColor: 'rgba(212,175,55,0.055)',
                   allow_symbol_change: false,
                   calendar: false,

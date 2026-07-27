@@ -5,6 +5,7 @@ import {useEffect, useState} from 'react';
 
 import type {WorkspacePreferences} from '@/lib/market-tools/workspace';
 import {authFetch} from '@/lib/utils/authFetch';
+import {usePortalTheme} from '@/components/theme/PortalThemeProvider';
 
 import ForexHeatmap from './ForexHeatmap';
 import TradingViewWidget from './TradingViewWidget';
@@ -36,6 +37,7 @@ export default function MarketIntelligence({
 }) {
   const [regime, setRegime] = useState<Regime | null>(null);
   const [regimeError, setRegimeError] = useState(false);
+  const {theme} = usePortalTheme();
 
   useEffect(() => {
     authFetch('/api/quant/regime')
@@ -126,7 +128,7 @@ export default function MarketIntelligence({
               blockColor: 'change',
               grouping: 'sector',
               locale: 'en',
-              colorTheme: 'dark',
+              colorTheme: theme,
               hasTopBar: true,
               isDataSetEnabled: true,
               isZoomEnabled: true,
@@ -147,7 +149,7 @@ export default function MarketIntelligence({
               blockSize: 'market_cap_calc',
               blockColor: '24h_close_change|5',
               locale: 'en',
-              colorTheme: 'dark',
+              colorTheme: theme,
               hasTopBar: true,
               isDataSetEnabled: true,
               isZoomEnabled: true,
@@ -175,7 +177,7 @@ export default function MarketIntelligence({
             showIntervalTabs: true,
             displayMode: 'multiple',
             locale: 'en',
-            colorTheme: 'dark',
+            colorTheme: theme,
           }}
           label="XAUUSD Technical Analysis"
           attributionUrl="https://www.tradingview.com/symbols/XAUUSD/technicals/"

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import AdminSidebar from '@/components/admin/layout/AdminSidebar';
 import AdminNav     from '@/components/admin/layout/AdminNav';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import PortalThemeProvider from '@/components/theme/PortalThemeProvider';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,14 +24,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (profile?.role !== 'admin') redirect('/portal/dashboard');
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0A0A0A' }}>
-      <AdminSidebar />
-      <div style={{ flex: 1, marginLeft: '256px', display: 'flex', flexDirection: 'column' }}>
-        <AdminNav />
-        <main style={{ flex: 1, paddingTop: '64px', background: '#0A0A0A' }}>
-          {children}
-        </main>
+    <PortalThemeProvider>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#0A0A0A' }}>
+        <AdminSidebar />
+        <div style={{ flex: 1, marginLeft: '256px', display: 'flex', flexDirection: 'column' }}>
+          <AdminNav />
+          <main style={{ flex: 1, paddingTop: '64px', background: '#0A0A0A' }}>
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </PortalThemeProvider>
   );
 }

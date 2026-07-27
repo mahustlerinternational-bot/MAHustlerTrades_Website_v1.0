@@ -7,6 +7,7 @@ import {MARKET_SESSIONS, isMarketSessionOpen} from '@/lib/market-tools/calculati
 import type {MarketCalendarEvent} from '@/lib/market-tools/calendar';
 import type {EliteAnalysis, WorkspacePreferences} from '@/lib/market-tools/workspace';
 import {authFetch} from '@/lib/utils/authFetch';
+import {usePortalTheme} from '@/components/theme/PortalThemeProvider';
 
 import TradingViewWidget from './TradingViewWidget';
 
@@ -49,6 +50,7 @@ export default function MarketDashboard({
 }) {
   const [now, setNow] = useState(Date.now());
   const [regime, setRegime] = useState<Regime | null>(null);
+  const {theme} = usePortalTheme();
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -114,7 +116,7 @@ export default function MarketDashboard({
         <TradingViewWidget
           scriptUrl="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js"
           config={{
-            colorTheme: 'dark',
+            colorTheme: theme,
             dateRange: '1D',
             showChart: true,
             locale: 'en',

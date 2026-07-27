@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth/store';
 import { useState, useEffect } from 'react';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 
 export default function PortalNav() {
   const { user, logout } = useAuthStore();
@@ -59,6 +60,7 @@ export default function PortalNav() {
 
       {/* User info + sign out */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <ThemeToggle compact />
         {user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg,#B8860B,#D4AF37)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cinzel,serif', fontSize: '0.75rem', fontWeight: 700, color: '#000', overflow: 'hidden', flexShrink: 0 }}>
