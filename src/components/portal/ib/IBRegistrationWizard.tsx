@@ -257,7 +257,7 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
               {errors.broker_name && <p style={errS}>{errors.broker_name.message}</p>}
             </div>
             <div>
-              <label style={lblS}>Account Number *</label>
+              <label style={lblS}>Account Number * (Your Login ID)</label>
               <input {...register('account_number')} style={iS} placeholder="Your broker account ID"
                 onFocus={e => (e.currentTarget.style.borderColor = 'rgba(212,175,55,.4)')}
                 onBlur={e  => (e.currentTarget.style.borderColor = 'rgba(255,255,255,.08)')} />
