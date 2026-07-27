@@ -25,12 +25,20 @@ async function getData(userId: string) {
   } catch { return { guide: {}, brokers: [], existing: null, communityInvites:[],communityAccounts:[],linking:{telegram:false,discord:false} }; }
 }
 
+const ELITE_FUNDING_COPY =
+  'Deposit the minimum required amount ($100+) to activate your trading account and qualify for Elite Membership';
+
+const LEGACY_FUNDING_COPY = new Set([
+  'Deposit the minimum required amount ($500+) to activate your trading account and qualify for Elite membership.',
+  'Deposit the minimum required amount ($500+) to activate your trading account and qualify for IB membership.',
+]);
+
 const DEFAULT_GUIDE = {
   broker_name: 'IC Markets', referral_link: 'https://icmarkets.com/?camp=MAHUSTLER',
   min_deposit: 500,
   steps: [
     { title: 'Create Your Broker Account', body: 'Open a live trading account with our approved broker partner using your exclusive referral link.' },
-    { title: 'Fund Your Account', body: 'Deposit the minimum required amount ($500+) to activate your trading account and qualify for Elite membership.' },
+    { title: 'Fund Your Account', body: ELITE_FUNDING_COPY },
     { title: 'Submit Your Details', body: 'Enter your broker name and account number. Our team will verify your account within 24-48 hours.' },
     { title: 'Access Granted', body: 'Once approved, you receive full Elite membership access at no monthly cost, as long as your account remains active.' },
   ],
@@ -42,7 +50,17 @@ export default async function IBPortalPage() {
   if (!user) return <div style={{padding:'2rem',color:'#888',fontFamily:'Montserrat,sans-serif'}}>Please <a href="/portal" style={{color:'#D4AF37'}}>sign in</a>.</div>;
 
   const { guide, brokers, existing, communityInvites,communityAccounts,linking } = await getData(user.id);
-  const mergedGuide = { ...DEFAULT_GUIDE, ...(guide as object) };
+  const storedGuide = guide as Partial<typeof DEFAULT_GUIDE>;
+  const storedSteps = Array.isArray(storedGuide.steps) ? storedGuide.steps : DEFAULT_GUIDE.steps;
+  const mergedGuide = {
+    ...DEFAULT_GUIDE,
+    ...storedGuide,
+    steps: storedSteps.map((step, index) =>
+      index === 1 && LEGACY_FUNDING_COPY.has(step.body)
+        ? {...step, body: ELITE_FUNDING_COPY}
+        : step,
+    ),
+  };
 
   return (
     <div style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>

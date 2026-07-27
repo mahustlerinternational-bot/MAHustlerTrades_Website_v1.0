@@ -62,7 +62,14 @@ export default function MemberDetailModal({memberId,onClose,onUpdated}:Props){
     try{
       const response=await authFetch(`/api/admin/members/${memberId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
       const result=await response.json().catch(()=>null);if(!response.ok)throw new Error(result?.error??'Update failed');
-      await refreshDetail();if(action==='grant_course')setCourseId('');onUpdated();toast.success('Member updated');
+      await refreshDetail();if(action==='grant_course')setCourseId('');onUpdated();
+      if(action==='review_ib'&&extra.status==='approved'&&result?.email?.status!=='sent'){
+        toast.warning(`Elite access approved, but email needs attention: ${result?.email?.message??'delivery status unavailable'}`);
+      }else if(action==='review_ib'&&extra.status==='approved'){
+        toast.success('Elite access approved and notification email sent');
+      }else{
+        toast.success('Member updated');
+      }
     }catch(error){toast.error(error instanceof Error?error.message:'Update failed');}
     finally{setSaving(null);}
   }

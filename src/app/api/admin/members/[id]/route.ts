@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, requireAdminSession } from '@/lib/supabase/server';
 import { provisionCommunityInvites } from '@/lib/community/invites';
+import {sendEliteAccessApprovalEmail} from '@/lib/email/eliteAccessApproval';
 export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest,{ params }:{ params:Promise<{ id:string }> }) {
   const { id } = await params;
@@ -39,9 +40,18 @@ export async function PATCH(req: NextRequest,{ params }:{ params:Promise<{ id:st
   if (action === 'review_ib') {
     const { status, admin_notes } = body;
     if (!['approved','rejected'].includes(status)) return NextResponse.json({ error:'Invalid status' },{ status:400 });
-    const targetProfile=await supabaseAdmin.from('profiles').select('role').eq('id',id).maybeSingle();
+    const [targetProfile,registration,authResult]=await Promise.all([
+      supabaseAdmin.from('profiles').select('role,full_name,member_code').eq('id',id).maybeSingle(),
+      supabaseAdmin.from('ib_registrations').select('id,status,broker_name,account_number').eq('user_id',id).order('submitted_at',{ascending:false}).limit(1).maybeSingle(),
+      supabaseAdmin.auth.admin.getUserById(id),
+    ]);
     if(targetProfile.error)return NextResponse.json({error:targetProfile.error.message},{status:500});
-    await supabaseAdmin.from('ib_registrations').update({ status, admin_notes:admin_notes??null, reviewed_at:new Date().toISOString(), reviewed_by:s.userId }).eq('user_id',id);
+    if(registration.error)return NextResponse.json({error:registration.error.message},{status:500});
+    if(!registration.data)return NextResponse.json({error:'Elite Access application was not found'},{status:404});
+    const wasApproved=registration.data.status==='approved';
+    const reviewedAt=new Date();
+    const reviewed=await supabaseAdmin.from('ib_registrations').update({ status, admin_notes:admin_notes??null, reviewed_at:reviewedAt.toISOString(), reviewed_by:s.userId }).eq('id',registration.data.id);
+    if(reviewed.error)return NextResponse.json({error:reviewed.error.message},{status:500});
     const pu: Record<string,string> = { ib_status: status==='approved'?'active':'rejected' };
     if (status==='approved'&&targetProfile.data?.role!=='admin') pu.role='ib_member';
     const { error } = await supabaseAdmin.from('profiles').update(pu).eq('id',id);
@@ -52,7 +62,26 @@ export async function PATCH(req: NextRequest,{ params }:{ params:Promise<{ id:st
     }else{
       await supabaseAdmin.from('enrollments').update({status:'revoked',revoked_at:new Date().toISOString()}).eq('user_id',id).eq('payment_method','ib_grant').eq('status','active');
     }
-    return NextResponse.json({ success:true, action:'review_ib', status, community, course_benefit:status==='approved' });
+    let email:null|Awaited<ReturnType<typeof sendEliteAccessApprovalEmail>>=null;
+    if(status==='approved'){
+      const recipient=authResult.data.user?.email?.trim();
+      if(wasApproved){
+        email={status:'skipped',message:'Approval email was not sent again because this application was already approved.'};
+      }else if(authResult.error||!recipient){
+        email={status:'skipped',message:'Elite Access was approved, but this member does not have a deliverable account email.'};
+      }else{
+        email=await sendEliteAccessApprovalEmail({
+          to:recipient,
+          memberName:targetProfile.data?.full_name??null,
+          memberCode:targetProfile.data?.member_code??null,
+          brokerName:registration.data.broker_name,
+          accountNumber:registration.data.account_number,
+          approvedAt:reviewedAt,
+          appUrl:process.env.NEXT_PUBLIC_APP_URL||req.nextUrl.origin,
+        });
+      }
+    }
+    return NextResponse.json({ success:true, action:'review_ib', status, community, email, course_benefit:status==='approved' });
   }
   if (action === 'grant_course') {
     const { course_id } = body;

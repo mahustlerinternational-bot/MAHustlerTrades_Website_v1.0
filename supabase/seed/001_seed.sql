@@ -21,7 +21,7 @@ INSERT INTO site_settings (key, value, description) VALUES
 ('ib_guide', '{
   "steps": [
     { "title": "Create Your Broker Account", "body": "Open a live trading account with our approved broker partner. Use our exclusive referral link to qualify for IB Elite access." },
-    { "title": "Fund Your Account", "body": "Deposit the minimum required amount ($500+) to activate your trading account and qualify for IB membership." },
+    { "title": "Fund Your Account", "body": "Deposit the minimum required amount ($100+) to activate your trading account and qualify for Elite Membership" },
     { "title": "Submit Your Details", "body": "Enter your broker name and account number below. Our team will verify your account within 24-48 hours." },
     { "title": "Access Granted", "body": "Once approved, you receive full Elite membership access at no monthly cost, as long as your account remains active." }
   ],

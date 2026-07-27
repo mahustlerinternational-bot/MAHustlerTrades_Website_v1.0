@@ -44,7 +44,11 @@ export default function IBRegistrationsPage() {
       });
       const result=await res.json();
       if (!res.ok) { toast.error(result.error); return; }
-      toast.success(status==='approved'?`IB access approved · all courses are now free · ${result.community?.length??0} community invite(s) prepared`:`IB registration ${status}`);
+      if(status==='approved'&&result.email?.status!=='sent'){
+        toast.warning(`Elite access approved, but email needs attention: ${result.email?.message??'delivery status unavailable'}`);
+      }else{
+        toast.success(status==='approved'?`Elite access approved · approval email sent · all courses are now free · ${result.community?.length??0} community invite(s) prepared`:`Elite registration ${status}`);
+      }
       fetchRegs();
     } finally { setSaving(null); }
   }
