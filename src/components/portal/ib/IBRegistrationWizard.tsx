@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm }   from 'react-hook-form';
 import { zodResolver }from '@hookform/resolvers/zod';
 import { z }          from 'zod';
-import { CheckCircle, Copy, ExternalLink, Loader2, ChevronRight, ChevronLeft, Clock, Shield } from 'lucide-react';
+import { CheckCircle, Copy, ExternalLink, Loader2, ChevronRight, ChevronLeft, Clock, Shield, Film, PlayCircle } from 'lucide-react';
 import { toast }      from 'sonner';
 import type { IbRegistration } from '@/types';
 import { authFetch } from '@/lib/utils/authFetch';
@@ -24,6 +24,9 @@ interface BrokerOption {
   min_deposit: number;
   is_active: boolean;
   sort_order: number;
+  tutorial_video_url?: string | null;
+  tutorial_video_storage_path?: string | null;
+  tutorial_playback_url?: string | null;
 }
 
 const formSchema = z.object({
@@ -218,6 +221,7 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
               <p style={{ fontSize: '.6rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#888', marginBottom: '6px' }}>Minimum Deposit</p>
               <p style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '1.5rem', fontWeight: 700, color: '#D4AF37' }}>${selectedBroker.min_deposit.toLocaleString()}</p>
             </div>
+            <BrokerTutorial broker={selectedBroker} />
             <div>
               <p style={{ fontSize: '.6rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#888', marginBottom: '8px' }}>Your Referral Link</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -302,6 +306,72 @@ export default function IBRegistrationWizard({ guide, brokers, existing, communi
   );
 }
 
+function BrokerTutorial({broker}:{broker:BrokerOption}) {
+  const playbackUrl = broker.tutorial_playback_url ?? broker.tutorial_video_url ?? null;
+  const embedUrl = playbackUrl ? embedVideoUrl(playbackUrl) : null;
+  return (
+    <section style={tutorialSection}>
+      <div style={tutorialHeading}>
+        <span style={tutorialIcon}><PlayCircle size={15} /></span>
+        <div>
+          <p style={{fontFamily:'Cinzel,serif',fontSize:'.7rem',fontWeight:700,color:'#D4AF37'}}>How to Register & Verify Your Account</p>
+          <p style={{fontSize:'.56rem',color:'#666',marginTop:'3px'}}>Tutorial for {broker.name}</p>
+        </div>
+      </div>
+      {!playbackUrl ? (
+        <div style={tutorialPlaceholder}>
+          <Film size={31} color="#555" />
+          <strong style={{fontFamily:'Cinzel,serif',fontSize:'.66rem',letterSpacing:'1.5px',color:'#777'}}>BROKER VIDEO TUTORIAL</strong>
+          <span style={{fontSize:'.56rem',color:'#555',textAlign:'center'}}>The administrator can upload or assign a tutorial specifically for {broker.name}.</span>
+        </div>
+      ) : embedUrl ? (
+        <div style={tutorialVideoWrap}>
+          <iframe
+            key={embedUrl}
+            src={embedUrl}
+            title={`${broker.name} registration and verification tutorial`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            style={{position:'absolute',inset:0,width:'100%',height:'100%',border:0}}
+          />
+        </div>
+      ) : (
+        <video
+          key={playbackUrl}
+          controls
+          controlsList="nodownload"
+          playsInline
+          preload="metadata"
+          src={playbackUrl}
+          style={{display:'block',width:'100%',maxHeight:'380px',background:'#000'}}
+        />
+      )}
+    </section>
+  );
+}
+
+function embedVideoUrl(raw:string) {
+  try {
+    const url = new URL(raw);
+    if (url.hostname.includes('youtube.com')) {
+      const id = url.searchParams.get('v') ?? url.pathname.split('/').filter(Boolean).pop();
+      return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+    }
+    if (url.hostname === 'youtu.be') {
+      const id = url.pathname.slice(1);
+      return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+    }
+    if (url.hostname.includes('vimeo.com')) {
+      const id = url.pathname.split('/').filter(Boolean).pop();
+      return id ? `https://player.vimeo.com/video/${id}` : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 const iS: React.CSSProperties = { width: '100%', background: '#0A0A0A', border: '1px solid rgba(255,255,255,.08)', color: '#fff', fontSize: '.78rem', padding: '10px 12px', outline: 'none', fontFamily: 'inherit', transition: 'border-color .3s', boxSizing: 'border-box' };
 const lblS: React.CSSProperties = { display: 'block', fontSize: '.6rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#888', marginBottom: '6px' };
 const errS: React.CSSProperties = { fontSize: '.65rem', color: '#FF4757', marginTop: '4px' };
@@ -309,3 +379,8 @@ const backBtnS: React.CSSProperties = { display: 'flex', alignItems: 'center', g
 const nextBtnS: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'linear-gradient(135deg,#B8860B,#D4AF37)', color: '#000', border: 'none', padding: '12px', fontSize: '.72rem', fontWeight: 700, fontFamily: 'Cinzel,serif', letterSpacing: '2px', textTransform: 'uppercase', cursor: 'pointer' };
 const nextBtnFlexS: React.CSSProperties = { ...nextBtnS, flex: 1 };
 const iconBtnS: React.CSSProperties = { padding: '8px', border: '1px solid rgba(212,175,55,.3)', color: '#D4AF37', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' };
+const tutorialSection:React.CSSProperties={border:'1px solid rgba(212,175,55,.16)',background:'rgba(212,175,55,.025)',overflow:'hidden'};
+const tutorialHeading:React.CSSProperties={display:'flex',alignItems:'center',gap:'9px',padding:'10px 12px',borderBottom:'1px solid rgba(212,175,55,.1)'};
+const tutorialIcon:React.CSSProperties={width:29,height:29,display:'grid',placeItems:'center',border:'1px solid rgba(212,175,55,.22)',color:'#D4AF37',flexShrink:0};
+const tutorialPlaceholder:React.CSSProperties={minHeight:'220px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'9px',padding:'22px',background:'radial-gradient(circle at center,#171717,#080808)'};
+const tutorialVideoWrap:React.CSSProperties={position:'relative',paddingTop:'56.25%',background:'#000'};

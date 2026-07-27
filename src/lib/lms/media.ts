@@ -52,6 +52,18 @@ export async function createVideoUpload(courseId:string,fileName:string,contentT
   return createLessonMediaUpload(courseId,fileName,contentType,size,'video');
 }
 
+export async function createBrokerTutorialUpload(fileName:string,contentType:string,size:number){
+  const extension=VIDEO_TYPES.get(contentType);
+  if(!extension)throw new Error('Use an MP4, WebM, OGG, or MOV video file');
+  if(size<=0||size>MAX_VIDEO_SIZE)throw new Error('Direct video uploads must be 50 MB or smaller. Use a YouTube, Vimeo, or hosted video link for larger files');
+  await ensureCourseMediaBucket();
+  const safeBase=fileName.replace(/\.[^.]+$/,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'broker-tutorial';
+  const path=`brokers/tutorials/${crypto.randomUUID()}-${safeBase}.${extension}`;
+  const {data,error}=await supabaseAdmin.storage.from(COURSE_MEDIA_BUCKET).createSignedUploadUrl(path);
+  if(error||!data)throw new Error(error?.message??'Could not prepare the broker tutorial upload');
+  return {path,token:data.token,bucket:COURSE_MEDIA_BUCKET};
+}
+
 export async function signedCourseMediaUrl(path:string|null|undefined){
   if(!path)return null;const {data,error}=await supabaseAdmin.storage.from(COURSE_MEDIA_BUCKET).createSignedUrl(path,60*60);
   return error?null:data.signedUrl;

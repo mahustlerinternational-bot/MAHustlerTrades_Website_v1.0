@@ -3,6 +3,8 @@ import { createSupabaseServerClient, supabaseAdmin } from '@/lib/supabase/server
 import IBRegistrationWizard from '@/components/portal/ib/IBRegistrationWizard';
 import { loadIntegrationSettings } from '@/lib/integrations/settings';
 import { provisionCommunityInvites } from '@/lib/community/invites';
+import {signedCourseMediaUrl} from '@/lib/lms/media';
+import type {BrokerRecord} from '@/lib/ib/brokerTypes';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +23,16 @@ async function getData(userId: string) {
     const missingTelegram=integrationSettings.telegram.enabled&&!communityInvites.some(invite=>invite.platform==='telegram');
     const missingDiscord=integrationSettings.discord.enabled&&!communityInvites.some(invite=>invite.platform==='discord');
     if(ibRes.data?.status==='approved'&&(expired||communityInvites.length===0||missingTelegram||missingDiscord))communityInvites=await provisionCommunityInvites(userId);
-    return { guide: settingsRes.data?.value ?? {}, brokers: brokersRes.data?.value ?? [], existing: ibRes.data ?? null, communityInvites,communityAccounts:accountsRes.data??[],linking:{telegram:Boolean(integrationSettings.telegram.enabled&&integrationSettings.telegram.bot_token&&integrationSettings.telegram.inbound_enabled),discord:Boolean(integrationSettings.discord.oauth_enabled&&integrationSettings.discord.client_id&&integrationSettings.discord.client_secret)} };
+    const brokerValues = Array.isArray(brokersRes.data?.value)
+      ? brokersRes.data.value as BrokerRecord[]
+      : [];
+    const brokers = await Promise.all(brokerValues.map(async broker => ({
+      ...broker,
+      tutorial_playback_url: broker.tutorial_video_storage_path
+        ? await signedCourseMediaUrl(broker.tutorial_video_storage_path)
+        : broker.tutorial_video_url ?? null,
+    })));
+    return { guide: settingsRes.data?.value ?? {}, brokers, existing: ibRes.data ?? null, communityInvites,communityAccounts:accountsRes.data??[],linking:{telegram:Boolean(integrationSettings.telegram.enabled&&integrationSettings.telegram.bot_token&&integrationSettings.telegram.inbound_enabled),discord:Boolean(integrationSettings.discord.oauth_enabled&&integrationSettings.discord.client_id&&integrationSettings.discord.client_secret)} };
   } catch { return { guide: {}, brokers: [], existing: null, communityInvites:[],communityAccounts:[],linking:{telegram:false,discord:false} }; }
 }
 

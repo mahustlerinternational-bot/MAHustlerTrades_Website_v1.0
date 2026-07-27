@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminSession, supabaseAdmin } from '@/lib/supabase/server';
+import type {BrokerRecord} from '@/lib/ib/brokerTypes';
+import {removeCourseMedia, signedCourseMediaUrl} from '@/lib/lms/media';
 
 export const dynamic = 'force-dynamic';
 
-export interface BrokerRecord {
-  id: string;
-  name: string;
-  referral_link: string;
-  min_deposit: number;
-  is_active: boolean;
-  sort_order: number;
-}
+export type {BrokerRecord} from '@/lib/ib/brokerTypes';
 
 async function readBrokers(): Promise<BrokerRecord[]> {
   const { data } = await supabaseAdmin
@@ -37,11 +32,34 @@ function validateUrl(value: unknown) {
   } catch { return false; }
 }
 
+function optionalVideoUrl(value: unknown) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  return validateUrl(normalized) ? normalized : undefined;
+}
+
+function optionalTutorialPath(value: unknown) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  return normalized.startsWith('brokers/tutorials/') ? normalized : undefined;
+}
+
+async function withPlayback(broker: BrokerRecord): Promise<BrokerRecord> {
+  return {
+    ...broker,
+    tutorial_playback_url: broker.tutorial_video_storage_path
+      ? await signedCourseMediaUrl(broker.tutorial_video_storage_path)
+      : broker.tutorial_video_url ?? null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const session = await requireAdminSession(req);
   if (!session) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const brokers = await readBrokers();
-  return NextResponse.json(brokers.sort((a, b) => a.sort_order - b.sort_order));
+  return NextResponse.json(await Promise.all(
+    brokers.sort((a, b) => a.sort_order - b.sort_order).map(withPlayback),
+  ));
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +69,10 @@ export async function POST(req: NextRequest) {
   const name = String(body.name ?? '').trim();
   if (name.length < 2) return NextResponse.json({ error: 'Broker name is required' }, { status: 400 });
   if (!validateUrl(body.referral_link)) return NextResponse.json({ error: 'A valid HTTPS referral link is required' }, { status: 400 });
+  const tutorialVideoUrl = optionalVideoUrl(body.tutorial_video_url);
+  const tutorialStoragePath = optionalTutorialPath(body.tutorial_video_storage_path);
+  if (tutorialVideoUrl === undefined) return NextResponse.json({error: 'Tutorial video link must be a valid HTTPS URL'}, {status: 400});
+  if (tutorialStoragePath === undefined) return NextResponse.json({error: 'Invalid tutorial upload path'}, {status: 400});
 
   const brokers = await readBrokers();
   if (brokers.some(b => b.name.toLowerCase() === name.toLowerCase())) {
@@ -63,6 +85,8 @@ export async function POST(req: NextRequest) {
     min_deposit: Math.max(0, Number(body.min_deposit) || 0),
     is_active: body.is_active !== false,
     sort_order: Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : brokers.length,
+    tutorial_video_url: tutorialStoragePath ? null : tutorialVideoUrl,
+    tutorial_video_storage_path: tutorialStoragePath,
   };
   const { error } = await writeBrokers([...brokers, broker], session.userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -77,10 +101,26 @@ export async function PATCH(req: NextRequest) {
   if (body.referral_link !== undefined && !validateUrl(body.referral_link)) {
     return NextResponse.json({ error: 'A valid HTTPS referral link is required' }, { status: 400 });
   }
+  const tutorialVideoUrl = optionalVideoUrl(body.tutorial_video_url);
+  const tutorialStoragePath = optionalTutorialPath(body.tutorial_video_storage_path);
+  if (body.tutorial_video_url !== undefined && tutorialVideoUrl === undefined) {
+    return NextResponse.json({error: 'Tutorial video link must be a valid HTTPS URL'}, {status: 400});
+  }
+  if (body.tutorial_video_storage_path !== undefined && tutorialStoragePath === undefined) {
+    return NextResponse.json({error: 'Invalid tutorial upload path'}, {status: 400});
+  }
   const brokers = await readBrokers();
   const index = brokers.findIndex(b => b.id === body.id);
   if (index < 0) return NextResponse.json({ error: 'Broker not found' }, { status: 404 });
   const current = brokers[index];
+  const nextStoragePath = body.tutorial_video_storage_path !== undefined
+    ? tutorialStoragePath
+    : current.tutorial_video_storage_path ?? null;
+  const nextVideoUrl = nextStoragePath
+    ? null
+    : body.tutorial_video_url !== undefined
+      ? tutorialVideoUrl
+      : current.tutorial_video_url ?? null;
   brokers[index] = {
     ...current,
     ...(body.name !== undefined ? { name: String(body.name).trim() } : {}),
@@ -88,10 +128,18 @@ export async function PATCH(req: NextRequest) {
     ...(body.min_deposit !== undefined ? { min_deposit: Math.max(0, Number(body.min_deposit) || 0) } : {}),
     ...(body.is_active !== undefined ? { is_active: Boolean(body.is_active) } : {}),
     ...(body.sort_order !== undefined ? { sort_order: Number(body.sort_order) || 0 } : {}),
+    tutorial_video_url: nextVideoUrl,
+    tutorial_video_storage_path: nextStoragePath,
   };
   const { error } = await writeBrokers(brokers, session.userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(brokers[index]);
+  if (
+    current.tutorial_video_storage_path &&
+    current.tutorial_video_storage_path !== nextStoragePath
+  ) {
+    await removeCourseMedia(current.tutorial_video_storage_path);
+  }
+  return NextResponse.json(await withPlayback(brokers[index]));
 }
 
 export async function DELETE(req: NextRequest) {
@@ -104,5 +152,9 @@ export async function DELETE(req: NextRequest) {
   if (next.length === brokers.length) return NextResponse.json({ error: 'Broker not found' }, { status: 404 });
   const { error } = await writeBrokers(next, session.userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const removed = brokers.find(broker => broker.id === id);
+  if (removed?.tutorial_video_storage_path) {
+    await removeCourseMedia(removed.tutorial_video_storage_path);
+  }
   return NextResponse.json({ success: true });
 }
