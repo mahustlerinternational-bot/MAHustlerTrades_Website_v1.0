@@ -23,7 +23,7 @@ export default function PortalSidebar() {
 
   const role      = user?.role       ?? 'member';
   const ibStatus  = user?.ib_status  ?? 'none';
-  const hasPackage= Boolean((user as any)?.package_id || (user as any)?.package);
+  const hasPackage= (user as any)?.package?.is_active === true;
   const isPaid    = hasPackage || role === 'admin' || ibStatus === 'active';
 
   async function handleLogout() {

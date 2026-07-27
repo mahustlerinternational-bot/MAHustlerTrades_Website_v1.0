@@ -101,7 +101,7 @@ export function calculateXauPosition(input: XauRiskInput): XauRiskResult {
 }
 
 export interface MarketSession {
-  id: 'tokyo' | 'london' | 'new-york';
+  id: 'sydney' | 'tokyo' | 'london' | 'new-york';
   name: string;
   city: string;
   timeZone: string;
@@ -110,10 +110,113 @@ export interface MarketSession {
 }
 
 export const MARKET_SESSIONS: MarketSession[] = [
+  {id: 'sydney', name: 'Sydney Session', city: 'Sydney', timeZone: 'Australia/Sydney', openMinute: 7 * 60, closeMinute: 16 * 60},
   {id: 'tokyo', name: 'Asian Session', city: 'Tokyo', timeZone: 'Asia/Tokyo', openMinute: 9 * 60, closeMinute: 18 * 60},
   {id: 'london', name: 'London Session', city: 'London', timeZone: 'Europe/London', openMinute: 8 * 60, closeMinute: 17 * 60},
   {id: 'new-york', name: 'New York Session', city: 'New York', timeZone: 'America/New_York', openMinute: 8 * 60, closeMinute: 17 * 60},
 ];
+
+export function calculateDrawdownRecovery(drawdownPercent: number) {
+  if (!Number.isFinite(drawdownPercent) || drawdownPercent < 0 || drawdownPercent >= 100) return null;
+  return drawdownPercent === 0 ? 0 : (drawdownPercent / (100 - drawdownPercent)) * 100;
+}
+
+export function calculateTradeOutcome(input: {
+  direction: TradeDirection;
+  entry: number;
+  exit: number;
+  lotSize: number;
+  contractSize?: number;
+  costs?: number;
+}) {
+  const contractSize = input.contractSize ?? 100;
+  const costs = input.costs ?? 0;
+  if (![input.entry, input.exit, input.lotSize, contractSize].every(finitePositive) || !Number.isFinite(costs) || costs < 0) {
+    return null;
+  }
+  const priceMove = input.direction === 'buy'
+    ? input.exit - input.entry
+    : input.entry - input.exit;
+  const gross = priceMove * input.lotSize * contractSize;
+  return {gross, net: gross - costs, priceMove};
+}
+
+export function calculateExpectancy(input: {
+  winRatePercent: number;
+  averageWinR: number;
+  averageLossR: number;
+}) {
+  const winProbability = input.winRatePercent / 100;
+  if (
+    !Number.isFinite(winProbability) || winProbability < 0 || winProbability > 1 ||
+    !finitePositive(input.averageWinR) || !finitePositive(input.averageLossR)
+  ) return null;
+  const lossProbability = 1 - winProbability;
+  return {
+    expectancyR: winProbability * input.averageWinR - lossProbability * input.averageLossR,
+    breakevenWinRate: input.averageLossR / (input.averageWinR + input.averageLossR) * 100,
+  };
+}
+
+export function calculatePortfolioRisk(risks: number[]) {
+  const valid = risks.filter(value => Number.isFinite(value) && value >= 0);
+  if (valid.length !== risks.length) return null;
+  return {
+    maximumCombinedRisk: valid.reduce((total, value) => total + value, 0),
+    independentRiskEstimate: Math.sqrt(valid.reduce((total, value) => total + value ** 2, 0)),
+  };
+}
+
+export function simulateDrawdownRisk(input: {
+  winRatePercent: number;
+  averageWinR: number;
+  averageLossR: number;
+  riskPercent: number;
+  trades: number;
+  drawdownLimitPercent: number;
+  simulations?: number;
+  seed?: number;
+}) {
+  const simulations = Math.min(20_000, Math.max(100, Math.round(input.simulations ?? 4_000)));
+  const trades = Math.min(5_000, Math.max(1, Math.round(input.trades)));
+  if (
+    !Number.isFinite(input.winRatePercent) || input.winRatePercent < 0 || input.winRatePercent > 100 ||
+    !finitePositive(input.averageWinR) || !finitePositive(input.averageLossR) ||
+    !finitePositive(input.riskPercent) || input.riskPercent >= 100 ||
+    !finitePositive(input.drawdownLimitPercent) || input.drawdownLimitPercent >= 100
+  ) return null;
+
+  let state = (input.seed ?? 20260728) >>> 0;
+  const random = () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+  let breaches = 0;
+  const endingBalances: number[] = [];
+  for (let simulation = 0; simulation < simulations; simulation += 1) {
+    let balance = 100;
+    let peak = 100;
+    let breached = false;
+    for (let trade = 0; trade < trades; trade += 1) {
+      const riskAmount = balance * input.riskPercent / 100;
+      balance += random() <= input.winRatePercent / 100
+        ? riskAmount * input.averageWinR
+        : -riskAmount * input.averageLossR;
+      peak = Math.max(peak, balance);
+      const drawdown = peak > 0 ? (peak - balance) / peak * 100 : 100;
+      if (drawdown >= input.drawdownLimitPercent) breached = true;
+    }
+    if (breached) breaches += 1;
+    endingBalances.push(balance);
+  }
+  endingBalances.sort((left, right) => left - right);
+  return {
+    breachProbability: breaches / simulations * 100,
+    medianEndingBalance: endingBalances[Math.floor(simulations / 2)],
+    simulations,
+    trades,
+  };
+}
 
 const WEEKDAYS = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
 
@@ -169,4 +272,3 @@ export function findNextSessionTransition(date: Date, session: MarketSession) {
   }
   return null;
 }
-

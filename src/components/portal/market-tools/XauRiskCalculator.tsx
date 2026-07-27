@@ -1,9 +1,10 @@
 'use client';
 
 import {Calculator, ChevronDown, ShieldAlert} from 'lucide-react';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 
 import {calculateXauPosition, type TradeDirection} from '@/lib/market-tools/calculations';
+import type {WorkspacePreferences} from '@/lib/market-tools/workspace';
 
 function money(value: number) {
   return new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 2}).format(value);
@@ -33,17 +34,37 @@ function NumericField({label, value, onChange, step = 'any', hint}: {
   );
 }
 
-export default function XauRiskCalculator() {
-  const [direction, setDirection] = useState<TradeDirection>('buy');
-  const [balance, setBalance] = useState('10000');
-  const [risk, setRisk] = useState('1');
-  const [entry, setEntry] = useState('4100');
-  const [stop, setStop] = useState('4090');
-  const [target, setTarget] = useState('4120');
-  const [contractSize, setContractSize] = useState('100');
-  const [minimumLot, setMinimumLot] = useState('0.01');
-  const [lotStep, setLotStep] = useState('0.01');
+export default function XauRiskCalculator({
+  initialSettings,
+  onSettingsChange,
+}: {
+  initialSettings?: WorkspacePreferences['risk'];
+  onSettingsChange?: (settings: WorkspacePreferences['risk']) => void;
+}) {
+  const [direction, setDirection] = useState<TradeDirection>(initialSettings?.direction ?? 'buy');
+  const [balance, setBalance] = useState(initialSettings?.balance ?? '10000');
+  const [risk, setRisk] = useState(initialSettings?.riskPercent ?? '1');
+  const [entry, setEntry] = useState(initialSettings?.entry ?? '4100');
+  const [stop, setStop] = useState(initialSettings?.stopLoss ?? '4090');
+  const [target, setTarget] = useState(initialSettings?.takeProfit ?? '4120');
+  const [contractSize, setContractSize] = useState(initialSettings?.contractSize ?? '100');
+  const [minimumLot, setMinimumLot] = useState(initialSettings?.minimumLot ?? '0.01');
+  const [lotStep, setLotStep] = useState(initialSettings?.lotStep ?? '0.01');
   const [advanced, setAdvanced] = useState(false);
+
+  useEffect(() => {
+    onSettingsChange?.({
+      direction,
+      balance,
+      riskPercent: risk,
+      entry,
+      stopLoss: stop,
+      takeProfit: target,
+      contractSize,
+      minimumLot,
+      lotStep,
+    });
+  }, [balance, contractSize, direction, entry, lotStep, minimumLot, onSettingsChange, risk, stop, target]);
 
   const result = useMemo(() => calculateXauPosition({
     balance: Number(balance),

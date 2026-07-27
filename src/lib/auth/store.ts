@@ -10,7 +10,7 @@ interface Profile {
   role:           string;
   package_id:     string | null;
   ib_status:      string;
-  package?:       { name: string; slug: string } | null;
+  package?:       { name: string; slug: string; is_active: boolean } | null;
   [key: string]:  unknown;
 }
 
@@ -83,7 +83,7 @@ export function useAuthInit() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*, package:packages(name, slug)')
+        .select('*, package:packages(name, slug, is_active)')
         .eq('id', session.user.id)
         .single();
 
@@ -94,7 +94,7 @@ export function useAuthInit() {
         if (newSession?.user) {
           const { data: p } = await supabase
             .from('profiles')
-            .select('*, package:packages(name, slug)')
+            .select('*, package:packages(name, slug, is_active)')
             .eq('id', newSession.user.id)
             .single();
           setUser(p as Profile ?? null);

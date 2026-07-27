@@ -28,7 +28,7 @@ export async function ensureMemberProfile(userId: string, preferredName: string 
 
   const result = await supabaseAdmin
     .from('profiles')
-    .select('*,package:packages(name,slug)')
+    .select('*,package:packages(name,slug,is_active)')
     .eq('id', userId)
     .single();
   if (result.error) throw new Error(result.error.message);

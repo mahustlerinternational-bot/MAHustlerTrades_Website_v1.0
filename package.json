@@ -17,6 +17,7 @@
     "test:lms-assessment-production": "node scripts/lms-assessment-production-smoke.mjs",
     "test:vault-production": "node scripts/vault-production-smoke.mjs",
     "test:market-tools": "tsx scripts/test-market-tools.ts",
+    "test:market-tools-production": "node --env-file=.env.local scripts/elite-tools-production-smoke.mjs",
     "test:live-signal-refresh": "tsx scripts/test-live-signal-refresh.ts",
     "test:trading-journal": "tsx scripts/test-trading-journal.ts",
     "test:trading-journal-production": "node --env-file=.env.local scripts/trading-journal-production-smoke.mjs",
