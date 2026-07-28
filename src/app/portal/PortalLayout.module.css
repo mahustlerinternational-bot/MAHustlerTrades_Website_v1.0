@@ -1,0 +1,70 @@
+.body {
+  min-height: 100vh;
+  display: flex;
+  padding-top: 72px;
+  background: var(--portal-bg, #0A0A0A);
+}
+
+.main {
+  width: calc(100% - 224px);
+  min-width: 0;
+  min-height: calc(100vh - 72px);
+  margin-left: 224px;
+  overflow-x: clip;
+  background: var(--portal-bg, #0A0A0A);
+}
+
+@media (max-width: 900px) {
+  .body { padding-top: 64px; }
+
+  .main {
+    width: 100%;
+    min-height: calc(100vh - 64px);
+    margin-left: 0;
+    padding-bottom: 72px;
+  }
+
+  .main > * {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 680px) {
+  .main > div[style*="padding: 2.5rem"],
+  .main > div[style*="padding:2.5rem"],
+  .main > div[style*="padding: 2rem"],
+  .main > div[style*="padding:2rem"] {
+    padding: 1.1rem !important;
+  }
+
+  .main h1 {
+    overflow-wrap: anywhere;
+  }
+
+  .main img,
+  .main video,
+  .main iframe {
+    max-width: 100%;
+  }
+
+  .main div[style*="grid-template-columns: 1fr 1fr"],
+  .main div[style*="grid-template-columns:1fr 1fr"],
+  .main div[style*="grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)"],
+  .main div[style*="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .main table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .main input,
+  .main select,
+  .main textarea,
+  .main button {
+    max-width: 100%;
+  }
+}

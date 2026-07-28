@@ -10,7 +10,6 @@ const LINKS = [
   ['Academy','/academy'],
   ['Quant AI','/quant-ai'],
   ['Events','/events'],
-  ['Members','/portal/dashboard'],
 ] as const;
 
 export default function PublicNav({active}:{active:'home'|'academy'|'quant'|'events'}){
@@ -38,7 +37,7 @@ export default function PublicNav({active}:{active:'home'|'academy'|'quant'|'eve
         {LINKS.map(([label,href])=><Link key={href} href={href} className={href===current?styles.active:''}>{label}</Link>)}
       </div>
       <div className={styles.actions}>
-        <Link href="/portal" className={styles.signIn}>Sign In</Link>
+        <Link href="/portal" className={styles.signIn}>Member&apos;s Portal</Link>
         <Link href="/portal?tab=register" className={styles.join}>Create Free Account</Link>
       </div>
       <button className={styles.menuButton} type="button" onClick={()=>setOpen(value=>!value)} aria-expanded={open} aria-controls="public-mobile-navigation" aria-label={open?'Close navigation':'Open navigation'}>
@@ -47,7 +46,7 @@ export default function PublicNav({active}:{active:'home'|'academy'|'quant'|'eve
       {open&&(
         <div className={styles.mobileNav} id="public-mobile-navigation">
           {LINKS.map(([label,href])=><Link key={href} href={href} onClick={()=>setOpen(false)}>{label}</Link>)}
-          <Link href="/portal" onClick={()=>setOpen(false)}>Member Sign In</Link>
+          <Link href="/portal" onClick={()=>setOpen(false)}>Member&apos;s Portal</Link>
           <Link href="/portal?tab=register" className={styles.mobileJoin} onClick={()=>setOpen(false)}>Create Free Account</Link>
         </div>
       )}

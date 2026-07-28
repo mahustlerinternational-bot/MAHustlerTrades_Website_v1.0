@@ -74,8 +74,14 @@ export default async function IBPortalPage() {
   };
 
   return (
-    <div style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>
-      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <div className="elite-access-page" style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>
+      <style>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @media(max-width:680px){
+          .elite-access-page{padding:1.1rem!important}
+          .elite-access-card{padding:1.15rem!important}
+        }
+      `}</style>
 
       <div style={{ marginBottom:'2.5rem', maxWidth:'680px', animation:'fadeUp .5s ease forwards' }}>
         <p style={{ fontFamily:'Cinzel,serif', fontSize:'.58rem', letterSpacing:'5px', textTransform:'uppercase', color:'#D4AF37', marginBottom:'8px' }}>Alternative Access</p>
@@ -86,7 +92,7 @@ export default async function IBPortalPage() {
       </div>
 
       <div style={{ maxWidth:'640px', animation:'fadeUp .5s .1s ease forwards', opacity:0 }}>
-        <div style={{ background:'#111', border:'1px solid rgba(212,175,55,.2)', padding:'2rem' }}>
+        <div className="elite-access-card" style={{ background:'#111', border:'1px solid rgba(212,175,55,.2)', padding:'2rem' }}>
           <IBRegistrationWizard guide={mergedGuide as any} brokers={Array.isArray(brokers) ? brokers as any : []} existing={existing as any} communityInvites={communityInvites as any} communityAccounts={communityAccounts as any} linking={linking} />
         </div>
       </div>

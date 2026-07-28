@@ -83,10 +83,15 @@ export default function ProfileClient() {
   const pkg      = (user as any)?.package;
 
   return (
-    <div style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>
+    <div className="portal-profile-page" style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
+        @media(max-width:680px){
+          .portal-profile-page{padding:1.1rem!important}
+          .profile-membership-grid{grid-template-columns:1fr!important}
+          .profile-identity-card{align-items:flex-start!important}
+        }
       `}</style>
 
       {/* Header */}
@@ -99,7 +104,7 @@ export default function ProfileClient() {
 
         {/* Avatar + Role card */}
         <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.06)', padding:'1.5rem', animation:'fadeUp .5s .08s ease forwards', opacity:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'1.25rem' }}>
+          <div className="profile-identity-card" style={{ display:'flex', alignItems:'center', gap:'1.25rem', flexWrap:'wrap' }}>
             {/* Avatar with upload */}
             <div style={{ position:'relative', flexShrink:0 }}>
               <div style={{ width:'72px', height:'72px', borderRadius:'50%', background:'linear-gradient(135deg,#B8860B,#D4AF37)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Cinzel,serif', fontSize:'1.5rem', fontWeight:700, color:'#000', overflow:'hidden', border:'2px solid rgba(212,175,55,.3)' }}>
@@ -195,7 +200,7 @@ export default function ProfileClient() {
             <div style={{ width:'3px', height:'16px', background:'linear-gradient(180deg,#A78BFA,#7C3AED)' }} />
             <p style={{ fontFamily:'Cinzel,serif', fontSize:'.72rem', fontWeight:700, letterSpacing:'1px' }}>Membership Status</p>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+          <div className="profile-membership-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
             {/* Package card */}
             <div style={{ background:'#0A0A0A', border:'1px solid rgba(255,255,255,.06)', padding:'1rem' }}>
               <p style={{ fontSize:'.58rem', letterSpacing:'2px', textTransform:'uppercase', color:'#555', marginBottom:'8px' }}>💎 Package</p>

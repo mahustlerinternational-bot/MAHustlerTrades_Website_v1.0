@@ -3,6 +3,7 @@
 import Link     from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore }           from '@/lib/auth/store';
+import styles from './PortalSidebar.module.css';
 
 const NAV_ITEMS = [
   { label:'Dashboard',  href:'/portal/dashboard', emoji:'📊' },
@@ -32,13 +33,9 @@ export default function PortalSidebar() {
   }
 
   return (
-    <aside style={{
-      position:'fixed', top:'72px', left:0, height:'calc(100vh - 72px)', width:'224px',
-      background:'#0D0D0D', borderRight:'1px solid rgba(212,175,55,0.12)',
-      display:'flex', flexDirection:'column', zIndex:40,
-    }}>
+    <aside className={styles.sidebar} aria-label="Member portal navigation">
       {/* User profile */}
-      <div style={{ padding:'16px', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+      <div className={styles.profile}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'linear-gradient(135deg,#B8860B,#D4AF37)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Cinzel,serif', fontSize:'.8rem', fontWeight:700, color:'#000', overflow:'hidden', flexShrink:0 }}>
             {user?.avatar_url
@@ -70,27 +67,24 @@ export default function PortalSidebar() {
       </div>
 
       {/* Nav links */}
-      <nav style={{ flex:1, padding:'10px 8px', overflowY:'auto' }}>
+      <nav className={styles.nav}>
         {NAV_ITEMS.map(({ label, href, emoji, requiresElite, accessStatus }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           const locked = Boolean(requiresElite && !isPaid);
           return (
-            <Link key={href} href={href} style={{
-              display:'flex', alignItems:'center', gap:'10px',
-              padding:'9px 12px', marginBottom:'2px',
-              fontSize:'.77rem', fontWeight:500, textDecoration:'none',
-              borderRadius:'2px', borderLeft: active ? '2px solid #D4AF37' : '2px solid transparent',
+            <Link key={href} href={href} className={styles.navLink} aria-current={active ? 'page' : undefined} style={{
+              borderLeft: active ? '2px solid #D4AF37' : '2px solid transparent',
               background: active ? 'rgba(212,175,55,0.08)' : 'transparent',
-              color: active ? '#D4AF37' : '#777', transition:'all .2s',
+              color: active ? '#D4AF37' : '#777',
             }}
               onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLAnchorElement).style.color='#D4AF37'; (e.currentTarget as HTMLAnchorElement).style.background='rgba(212,175,55,.04)'; }}}
               onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLAnchorElement).style.color='#777'; (e.currentTarget as HTMLAnchorElement).style.background='transparent'; }}}>
               <span style={{ fontSize:'13px' }}>{emoji}</span>
-              <span style={{flex:1}}>{label}</span>
-              {locked && <span title="Activate Elite access to unlock" style={{fontSize:'10px',opacity:.7}}>🔒</span>}
-              {requiresElite && isPaid && <span title="Elite access active" style={{fontSize:'10px',color:'#34D399'}}>✓</span>}
+              <span className={styles.label}>{label}</span>
+              {locked && <span className={styles.status} title="Activate Elite access to unlock" style={{fontSize:'10px',opacity:.7}}>🔒</span>}
+              {requiresElite && isPaid && <span className={styles.status} title="Elite access active" style={{fontSize:'10px',color:'#34D399'}}>✓</span>}
               {accessStatus && (
-                <span style={{
+                <span className={styles.status} style={{
                   fontSize:'.42rem', letterSpacing:'1px', padding:'2px 4px',
                   color:ibStatus === 'active' ? '#34D399' : '#D4AF37',
                   border:`1px solid ${ibStatus === 'active' ? 'rgba(52,211,153,.25)' : 'rgba(212,175,55,.2)'}`,
@@ -104,7 +98,7 @@ export default function PortalSidebar() {
       </nav>
 
       {/* Footer */}
-      <div style={{ padding:'10px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+      <div className={styles.footer}>
         {!isPaid && (
           <Link href="/portal/packages"
             style={{ display:'block', textAlign:'center', padding:'9px', background:'linear-gradient(135deg,#B8860B,#D4AF37)', color:'#000', textDecoration:'none', fontFamily:'Cinzel,serif', fontSize:'.62rem', fontWeight:700, letterSpacing:'2px', textTransform:'uppercase', marginBottom:'8px' }}>

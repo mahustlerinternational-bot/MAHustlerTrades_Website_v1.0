@@ -59,8 +59,10 @@ export default function PackageCards({ packages, currentPackageId }: Props) {
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes spin{to{transform:rotate(360deg)}}
         .pkg-card:hover{transform:translateY(-4px)!important;}
+        @media(max-width:1100px){.package-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+        @media(max-width:650px){.package-card-grid{grid-template-columns:1fr!important}.pkg-card{transform:none!important}}
       `}</style>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1.25rem', marginBottom:'2rem' }}>
+      <div className="package-card-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1.25rem', marginBottom:'2rem' }}>
         {packages.map((pkg, i) => {
           const isCurrent  = pkg.id === currentPackageId;
           const isFeatured = pkg.id === featured?.id;

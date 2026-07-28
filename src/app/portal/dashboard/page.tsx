@@ -61,15 +61,23 @@ export default async function PortalDashboard() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>
+    <div className="portal-dashboard" style={{ padding:'2.5rem', minHeight:'100vh', background:'#0A0A0A', fontFamily:'Montserrat,sans-serif', color:'#fff' }}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
         .stat-card:hover{border-color:rgba(212,175,55,.25)!important;transform:translateY(-2px)!important;}
         .stat-card{transition:all .2s!important;}
         .portal-row:hover{background:rgba(255,255,255,.025)!important}
-        @media(max-width:900px){.dashboard-learning-grid{grid-template-columns:1fr!important}}
-        @media(max-width:680px){.dashboard-stat-grid{grid-template-columns:repeat(2,1fr)!important}}
+        @media(max-width:900px){.dashboard-learning-grid,.dashboard-unlock-grid{grid-template-columns:1fr!important}}
+        @media(max-width:680px){
+          .portal-dashboard{padding:1.1rem!important}
+          .dashboard-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:.7rem!important}
+          .dashboard-stat-card{padding:1rem!important}
+          .dashboard-unlock{padding:1.25rem!important}
+          .dashboard-elite-badge{width:96px!important;height:96px!important}
+          .dashboard-elite-badge img{width:92px!important;height:92px!important}
+        }
+        @media(max-width:390px){.dashboard-stat-grid{grid-template-columns:1fr!important}}
       `}</style>
 
       {/* Header */}
@@ -96,7 +104,7 @@ export default async function PortalDashboard() {
             </div>
           </div>
           {ibStatus === 'active' && (
-            <div title="Official MAHustler Elite Member" style={{width:'138px',height:'138px',display:'grid',placeItems:'center',background:'transparent'}}>
+            <div className="dashboard-elite-badge" title="Official MAHustler Elite Member" style={{width:'138px',height:'138px',display:'grid',placeItems:'center',background:'transparent'}}>
               <Image src="/images/elite-badge-transparent.webp" alt="Official MAHustler Elite Member badge" width={132} height={132} priority style={{width:'132px',height:'132px',objectFit:'contain'}}/>
             </div>
           )}
@@ -111,7 +119,7 @@ export default async function PortalDashboard() {
           { icon:'⚡', label:'Live AI Signal',   value: isPaid ? (signal ? 'Active' : 'None') : '🔒 Upgrade', href: isPaid ? '/quant-ai' : '/portal/packages', color: isPaid && signal ? '#34D399' : '#555' },
           { icon:'🔗', label:'Elite Status',     value:(profile as any)?.ib_status ?? 'none', href:'/portal/ib', color: ibStatus==='active' ? '#34D399' : '#888' },
         ].map(({ icon, label, value, href, color }, i) => (
-          <Link key={label} href={href} className="stat-card"
+          <Link key={label} href={href} className="stat-card dashboard-stat-card"
             style={{ textDecoration:'none', background:'#111', border:'1px solid rgba(255,255,255,.06)', padding:'1.25rem', display:'block', animation:`fadeUp .5s ${i*.07}s ease forwards`, opacity:0 }}>
             <span style={{ fontSize:'1.4rem', display:'block', marginBottom:'10px' }}>{icon}</span>
             <p style={{ fontFamily:'Cinzel,serif', fontSize:'1.5rem', fontWeight:700, color, lineHeight:1, textTransform:'capitalize' }}>{value}</p>
@@ -131,8 +139,8 @@ export default async function PortalDashboard() {
 
       {/* Free account upgrade banner */}
       {!isPaid && (
-        <div style={{ background:'linear-gradient(135deg,rgba(212,175,55,0.08),rgba(212,175,55,0.02))', border:'1px solid rgba(212,175,55,0.3)', padding:'1.5rem 2rem', marginBottom:'2rem', animation:'fadeUp .5s .3s ease forwards', opacity:0 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:'2rem', alignItems:'center' }}>
+        <div className="dashboard-unlock" style={{ background:'linear-gradient(135deg,rgba(212,175,55,0.08),rgba(212,175,55,0.02))', border:'1px solid rgba(212,175,55,0.3)', padding:'1.5rem 2rem', marginBottom:'2rem', animation:'fadeUp .5s .3s ease forwards', opacity:0 }}>
+          <div className="dashboard-unlock-grid" style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:'2rem', alignItems:'center' }}>
             <div>
               <p style={{ fontFamily:'Cinzel,serif', fontSize:'.62rem', letterSpacing:'4px', textTransform:'uppercase', color:'#D4AF37', marginBottom:'8px' }}>Unlock Full Access</p>
               <h3 style={{ fontFamily:'Cinzel,serif', fontSize:'1.15rem', fontWeight:700, marginBottom:'8px' }}>You&apos;re on a Free Account</h3>
