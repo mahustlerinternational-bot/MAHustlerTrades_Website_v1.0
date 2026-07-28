@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {parseTelegramPost} from '../src/lib/integrations/telegramParser';
 import {
   formatSignalEntryZone,
+  signalOutcomeLabel,
   signalDisplayLevels,
 } from '../src/lib/quant/signalLevels';
 import {inboundTelegramPost} from '../src/lib/integrations/telegramUpdate';
@@ -86,7 +87,9 @@ assert.equal(events[1].normalized?.tp3,4132);
 assert.equal(events[2].normalized?.signal_type,'short');
 assert.equal(events[5].normalized?.action,'close_signal');
 assert.equal(events[5].normalized?.result_r,1.35);
+assert.equal(events[5].normalized?.outcome,'tp2_hit');
 assert.equal(events[6].normalized?.status,'closed_sl');
+assert.equal(events[6].normalized?.outcome,'sl_hit');
 assert.equal(events[7].normalized?.action,'regime');
 assert.equal(events[8].category,'risk');
 assert.equal(events[9].severity,'critical');
@@ -156,6 +159,45 @@ const display=signalDisplayLevels({
 });
 assert.equal(formatSignalEntryZone('XAUUSD',display.entryZone),'4,024.00 – 4,025.00');
 assert.deepEqual(display.takeProfits,[4029,4034,4039]);
+assert.equal(signalOutcomeLabel({status:'active',metadata:{latest_outcome:'tp2_hit'}}),'TP2 HIT');
+assert.equal(signalOutcomeLabel({status:'closed_sl',metadata:{}}),'SL HIT');
+
+const [tp1Update]=parseTelegramPost(`🎯 TP1 HIT — BREAKEVEN SECURED 🎯
+🧈 XAUUSD BUY 🧈
+🎫 Ticket: #1848244917
+📈 Entry: 4108.340
+✅ TP1 Reached: 4116.780`);
+assert.equal(tp1Update.normalized?.action,'update_signal');
+assert.equal(tp1Update.normalized?.outcome,'tp1_hit');
+assert.equal(tp1Update.normalized?.outcome_price,4116.78);
+assert.equal(tp1Update.normalized?.ticket,'1848244917');
+
+const [tp2Update]=parseTelegramPost(`🎯 TP2 HIT 🎯
+🧈 XAUUSD BUY 🧈
+🎫 Ticket: #1848244917
+📈 Entry: 4108.340
+✅ TP2 Reached: 4124.200`);
+assert.equal(tp2Update.normalized?.action,'update_signal');
+assert.equal(tp2Update.normalized?.outcome,'tp2_hit');
+assert.equal(tp2Update.normalized?.outcome_price,4124.2);
+
+const [tp3Update]=parseTelegramPost(`🎯 TP3 REACHED 🎯
+🧈 XAUUSD BUY 🧈
+🎫 Ticket: #1848244917
+📈 Entry: 4108.340
+✅ TP3 Reached: 4132.000`);
+assert.equal(tp3Update.normalized?.action,'update_signal');
+assert.equal(tp3Update.normalized?.outcome,'tp3_hit');
+assert.equal(tp3Update.normalized?.outcome_price,4132);
+
+const [slUpdate]=parseTelegramPost(`🛑 STOP LOSS HIT 🛑
+🧈 XAUUSD SELL 🧈
+🎫 Ticket: #1848244918
+📈 Entry: 4124.880
+🏁 Exit: 4133.200`);
+assert.equal(slUpdate.normalized?.action,'update_signal');
+assert.equal(slUpdate.normalized?.outcome,'sl_hit');
+assert.equal(slUpdate.normalized?.outcome_price,4133.2);
 
 const supergroupMessage={
   update_id:1,
@@ -179,4 +221,4 @@ const privateMessage={
 };
 assert.equal(inboundTelegramPost(privateMessage),null);
 
-console.log('Telegram parser: 12/12 templates passed');
+console.log('Telegram parser and signal outcome templates passed');

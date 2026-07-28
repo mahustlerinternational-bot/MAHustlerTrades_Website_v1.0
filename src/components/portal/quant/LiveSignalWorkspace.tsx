@@ -11,6 +11,7 @@ import {
   formatSignalPrice,
   signalDisplayLevels,
   signalEntryZone,
+  signalOutcomeLabel,
 } from '@/lib/quant/signalLevels';
 import {authFetch} from '@/lib/utils/authFetch';
 import type {QuantSignal} from '@/types';
@@ -239,6 +240,7 @@ export default function LiveSignalWorkspace({
   const activeSignal =
     signals.find(signal => signal.status === 'active') ?? null;
   const activeLevels = activeSignal ? signalDisplayLevels(activeSignal) : null;
+  const activeOutcome = activeSignal ? signalOutcomeLabel(activeSignal) : null;
 
   return (
     <>
@@ -262,6 +264,7 @@ export default function LiveSignalWorkspace({
             <p style={title}>{activeSignal ? 'Live Signal Active' : 'Live Signal Scanner'}</p>
             {activeSignal && <strong style={{fontFamily: 'Cinzel,serif', fontSize: '.92rem'}}>{activeSignal.instrument}</strong>}
             {activeSignal && <span style={{...sideBadge, color: activeSignal.signal_type === 'long' ? '#00D084' : '#FF4757'}}>{activeSignal.signal_type === 'long' ? 'BUY' : 'SELL'}</span>}
+            {activeSignal && activeOutcome !== 'AWAITING' && <span style={{...sideBadge, color: '#D4AF37'}}>{activeOutcome}</span>}
           </div>
           <div className="live-signal-controls" style={controls}>
             <span style={{...syncBadge, color: connected ? '#34D399' : '#F59E0B'}}>

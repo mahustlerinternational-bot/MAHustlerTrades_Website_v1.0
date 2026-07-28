@@ -3,7 +3,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {loadIntegrationSettings} from '@/lib/integrations/settings';
 import {parseTelegramPost} from '@/lib/integrations/telegramParser';
 import {sendDiscordMessage} from '@/lib/integrations/broadcast';
-import {closeSignal,openSignal} from '@/lib/quant/signalService';
+import {closeSignal,openSignal,updateSignalOutcome} from '@/lib/quant/signalService';
 import {supabaseAdmin} from '@/lib/supabase/server';
 import {consumeLinkCode} from '@/lib/community/linking';
 import {signalEntryZone} from '@/lib/quant/signalLevels';
@@ -15,6 +15,33 @@ function secureEqual(a:string,b:string){const aa=Buffer.from(a),bb=Buffer.from(b
 function regimeName(value:string){const v=value.toLowerCase();return v.includes('accumul')?'Accumulation':v.includes('distribut')?'Distribution':v.includes('rang')?'Ranging':'Trending';}
 async function reply(botToken:string,chatId:string,text:string){
   await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId,text}),signal:AbortSignal.timeout(10000)}).catch(()=>null);
+}
+async function findActiveSignal(input:{instrument?:string;signal_type?:string;entry?:number;ticket?:string}){
+  let query=supabaseAdmin.from('quant_signals').select('*').eq('status','active');
+  if(input.instrument)query=query.eq('instrument',input.instrument);
+  if(input.signal_type)query=query.eq('signal_type',input.signal_type);
+  const result=await query.order('broadcasted_at',{ascending:false}).limit(50);
+  if(result.error)throw new Error(result.error.message);
+  const candidates=(result.data??[]) as QuantSignal[];
+  const ticket=String(input.ticket??'').replace(/^#/,'').trim().toLowerCase();
+  if(ticket){
+    const ticketMatch=candidates.find(candidate=>{
+      const metadataTicket=String(candidate.metadata?.telegram_ticket??candidate.metadata?.ticket??'').replace(/^#/,'').trim().toLowerCase();
+      const externalTicket=String(candidate.external_id??'').replace(/^#/,'').trim().toLowerCase();
+      return metadataTicket===ticket||externalTicket===ticket;
+    });
+    if(ticketMatch)return ticketMatch;
+  }
+  if(input.entry!=null&&Number.isFinite(Number(input.entry))){
+    const entry=Number(input.entry);
+    const entryMatch=candidates.find(candidate=>{
+      if(Math.abs(Number(candidate.entry_price)-entry)<0.00001)return true;
+      const zone=signalEntryZone(candidate);
+      return zone.isRange&&entry>=zone.low&&entry<=zone.high;
+    });
+    if(entryMatch)return entryMatch;
+  }
+  return candidates.length===1?candidates[0]:null;
 }
 
 export async function POST(req:NextRequest){
@@ -70,20 +97,26 @@ export async function POST(req:NextRequest){
       try{
         const n=event.normalized;
         if(n?.action==='open_signal'&&n.instrument&&n.signal_type&&n.entry&&n.tp1&&n.sl){
-          const signal=await openSignal({external_id:`tg:${chatId}:${post.message_id}:${index}`,instrument:n.instrument,signal_type:n.signal_type,entry_price:n.entry,tp_price:n.tp1,sl_price:n.sl,analysis_notes:n.notes,metadata:{entry_zone:n.entry_zone??null,take_profits:[n.tp1,n.tp2,n.tp3].filter((value):value is number=>typeof value==='number'),telegram_message_id:post.message_id}},'ea',null,{cancelExisting:false,externalBroadcast:false});
+          const signal=await openSignal({external_id:`tg:${chatId}:${post.message_id}:${index}`,instrument:n.instrument,signal_type:n.signal_type,entry_price:n.entry,tp_price:n.tp1,sl_price:n.sl,analysis_notes:n.notes,metadata:{entry_zone:n.entry_zone??null,take_profits:[n.tp1,n.tp2,n.tp3].filter((value):value is number=>typeof value==='number'),telegram_message_id:post.message_id,...(n.ticket?{telegram_ticket:n.ticket}:{})}},'ea',null,{cancelExisting:false,externalBroadcast:false});
           normalization={signal_id:signal.id};
-        }else if(n?.action==='close_signal'&&n.instrument&&n.signal_type&&n.entry&&n.exit){
-          const candidates=await supabaseAdmin.from('quant_signals').select('*').eq('instrument',n.instrument).eq('signal_type',n.signal_type).eq('status','active').order('broadcasted_at',{ascending:false}).limit(20);
-          const match=(candidates.data??[] as QuantSignal[]).find(candidate=>{
-            if(Math.abs(Number(candidate.entry_price)-Number(n.entry))<0.00001)return true;
-            const zone=signalEntryZone(candidate);
-            return zone.isRange&&Number(n.entry)>=zone.low&&Number(n.entry)<=zone.high;
-          })??null;
+        }else if(n?.action==='update_signal'&&n.outcome){
+          const match=await findActiveSignal(n);
           if(match){
-            const closed=await closeSignal({id:match.id,status:n.status??'closed_manual',closed_price:n.exit,externalBroadcast:false});
-            const metadata={...(closed.metadata??{}),telegram_ticket:n.ticket??null};
-            const patch:Record<string,unknown>={metadata};if(n.result_r!=null)patch.result_r=n.result_r;
-            await supabaseAdmin.from('quant_signals').update(patch).eq('id',closed.id);normalization={signal_id:closed.id,matched:true};
+            const updated=await updateSignalOutcome({id:match.id,outcome:n.outcome,price:n.outcome_price,ticket:n.ticket,event_id:externalId,occurred_at:occurredAt,externalBroadcast:false});
+            normalization={signal_id:updated.id,matched:true,outcome:n.outcome,status:updated.status};
+          }else normalization={matched:false,outcome:n.outcome};
+        }else if(n?.action==='close_signal'&&n.exit){
+          const match=await findActiveSignal(n);
+          if(match){
+            if(n.outcome){
+              const updated=await updateSignalOutcome({id:match.id,outcome:n.outcome,price:n.exit,ticket:n.ticket,event_id:externalId,occurred_at:occurredAt,close_status:n.status??'closed_manual',result_r:n.result_r,externalBroadcast:false});
+              normalization={signal_id:updated.id,matched:true,outcome:n.outcome,status:updated.status};
+            }else{
+              const closed=await closeSignal({id:match.id,status:n.status??'closed_manual',closed_price:n.exit,externalBroadcast:false});
+              const metadata={...(closed.metadata??{}),...(n.ticket?{telegram_ticket:n.ticket}:{})};
+              const patch:Record<string,unknown>={metadata};if(n.result_r!=null)patch.result_r=n.result_r;
+              await supabaseAdmin.from('quant_signals').update(patch).eq('id',closed.id);normalization={signal_id:closed.id,matched:true,status:closed.status};
+            }
           }else normalization={matched:false};
         }else if(n?.action==='regime'&&n.regime){
           const active=regimeName(n.regime);const values={accumulation_pct:0,trending_pct:0,distribution_pct:0,ranging_pct:0};

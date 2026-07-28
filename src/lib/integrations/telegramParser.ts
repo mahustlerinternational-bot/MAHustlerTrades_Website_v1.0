@@ -3,8 +3,9 @@ import type {FeedEventCategory,FeedEventSeverity,SignalType} from '@/types';
 export interface ParsedTelegramEvent{
   category:FeedEventCategory;severity:FeedEventSeverity;title:string;body:string;metrics:Record<string,unknown>;
   normalized?:{
-    action:'open_signal'|'close_signal'|'regime';instrument?:string;signal_type?:SignalType;entry?:number;tp1?:number;tp2?:number;tp3?:number;sl?:number;
+    action:'open_signal'|'update_signal'|'close_signal'|'regime';instrument?:string;signal_type?:SignalType;entry?:number;tp1?:number;tp2?:number;tp3?:number;sl?:number;
     entry_zone?:{low:number;high:number};exit?:number;result_r?:number;status?:'closed_tp'|'closed_sl'|'closed_manual';ticket?:string;regime?:string;notes?:string;
+    outcome?:'tp1_hit'|'tp2_hit'|'tp3_hit'|'sl_hit';outcome_price?:number;
   };
 }
 
@@ -33,12 +34,18 @@ function titleOf(text:string){
 }
 function instrument(text:string){return plain(text).match(/\bXAUUSDm?\b/i)?.[0]?.replace(/m$/i,'').toUpperCase();}
 function direction(text:string):SignalType|undefined{const p=plain(text).toUpperCase();return /\bBUY\b/.test(p)?'long':/\bSELL\b/.test(p)?'short':undefined;}
+function detectedOutcome(upper:string){
+  const target=upper.match(/\bTP\s*([123])\s*(?:HIT|REACHED)\b/);
+  if(target)return `tp${target[1]}_hit` as 'tp1_hit'|'tp2_hit'|'tp3_hit';
+  if(/\b(?:STOP\s*LOSS|SL)\s*(?:HIT|TRIGGERED|REACHED)\b/.test(upper))return 'sl_hit' as const;
+  return undefined;
+}
 
 function parseSection(body:string):ParsedTelegramEvent{
-  const p=plain(body),upper=p.toUpperCase(),title=titleOf(body);let category:FeedEventCategory='alert',severity:FeedEventSeverity='info';
+  const p=plain(body),upper=p.toUpperCase(),title=titleOf(body),outcome=detectedOutcome(upper);let category:FeedEventCategory='alert',severity:FeedEventSeverity='info';
   if(/\b(?:BUY|SELL)\s+(?:TRADE\s+OPENED|SIGNAL(?:\s+OPENED)?)\b/.test(upper)){category='signal';severity='success';}
   else if(/TRADE CLOSED/.test(upper)){category='trade_update';severity=/LOSS/.test(upper)?'critical':'success';}
-  else if(/TP\d HIT|POSITIONS? OPENED|BREAKEVEN/.test(upper)){category='trade_update';severity='success';}
+  else if(outcome||/POSITIONS? OPENED|BREAKEVEN/.test(upper)){category='trade_update';severity=outcome==='sl_hit'?'critical':'success';}
   else if(/DAILY SUMMARY|PERFORMANCE RECAP/.test(upper)){category='performance';severity='info';}
   else if(/DAILY HALT|LOSS LIMIT|DRAWDOWN/.test(upper)){category='risk';severity='critical';}
   else if(/REGIME SHIFT/.test(upper)){category='regime';severity='warning';}
@@ -49,6 +56,7 @@ function parseSection(body:string):ParsedTelegramEvent{
   const mappings:Array<[string,string,'number'|'text']>=[
     ['balance','Balance','number'],['equity','Equity','number'],['current_equity','Current Equity','number'],['start_equity','Start Equity','number'],
     ['entry','Entry','number'],['exit','Exit','number'],['tp1','TP1','number'],['tp2','TP2','number'],['tp3','TP3','number'],['stop_loss','Stop Loss','number'],
+    ['tp1_reached','TP1 Reached','number'],['tp2_reached','TP2 Reached','number'],['tp3_reached','TP3 Reached','number'],['sl_reached','SL Reached','number'],
     ['lot_size','Lot Size','number'],['total_volume','Total Volume','number'],['remaining_volume','Remaining Volume','number'],['risk_usd','Risk','number'],['risk_exposure_pct','Risk Exposure','number'],
     ['confluence_pct','Confluence','number'],['drawdown_pct','Drawdown','number'],['profit','Profit','number'],['loss','Loss','number'],['partial_profit','Partial Profit','number'],
     ['result_r','Result','number'],['net_pnl','NET P&L','number'],['best_result_r','BEST RESULT','number'],['win_rate_pct','WIN RATE','number'],
@@ -69,8 +77,26 @@ function parseSection(body:string):ParsedTelegramEvent{
     : typeof metrics.entry_zone_midpoint==='number'
       ? metrics.entry_zone_midpoint as number
       : undefined;
-  if(category==='signal'&&inst&&side&&normalizedEntry&&typeof metrics.tp1==='number'&&typeof metrics.stop_loss==='number')normalized={action:'open_signal',instrument:inst,signal_type:side,entry:normalizedEntry,entry_zone:zone?{low:zone.low,high:zone.high}:undefined,tp1:metrics.tp1 as number,tp2:metrics.tp2 as number|undefined,tp3:metrics.tp3 as number|undefined,sl:metrics.stop_loss as number,notes:typeof metrics.setup_tags==='string'?metrics.setup_tags:undefined};
-  else if(category==='trade_update'&&/TRADE CLOSED/.test(upper)&&inst&&side&&typeof metrics.entry==='number'&&typeof metrics.exit==='number')normalized={action:'close_signal',instrument:inst,signal_type:side,entry:metrics.entry as number,exit:metrics.exit as number,result_r:typeof metrics.result_r==='number'?metrics.result_r as number:undefined,status:/LOSS/.test(upper)?'closed_sl':String(metrics.exit_reason??'').toUpperCase().startsWith('TP')?'closed_tp':'closed_manual',ticket:typeof metrics.ticket==='string'?metrics.ticket.replace(/^#/,''):undefined};
+  const outcomePrice=outcome==='tp1_hit'
+    ? Number(metrics.tp1_reached??metrics.tp1)
+    : outcome==='tp2_hit'
+      ? Number(metrics.tp2_reached??metrics.tp2)
+      : outcome==='tp3_hit'
+        ? Number(metrics.tp3_reached??metrics.tp3)
+        : outcome==='sl_hit'
+          ? Number(metrics.sl_reached??metrics.stop_loss??metrics.exit)
+          : NaN;
+  const ticket=typeof metrics.ticket==='string'?metrics.ticket.replace(/^#/,''):undefined;
+  if(category==='signal'&&inst&&side&&normalizedEntry&&typeof metrics.tp1==='number'&&typeof metrics.stop_loss==='number')normalized={action:'open_signal',instrument:inst,signal_type:side,entry:normalizedEntry,entry_zone:zone?{low:zone.low,high:zone.high}:undefined,tp1:metrics.tp1 as number,tp2:metrics.tp2 as number|undefined,tp3:metrics.tp3 as number|undefined,sl:metrics.stop_loss as number,notes:typeof metrics.setup_tags==='string'?metrics.setup_tags:undefined,ticket};
+  else if(category==='trade_update'&&/TRADE CLOSED/.test(upper)&&inst&&side&&typeof metrics.entry==='number'&&typeof metrics.exit==='number'){
+    const exitReason=String(metrics.exit_reason??'').toUpperCase();
+    const exitTarget=exitReason.match(/\bTP\s*([123])\b/)?.[1];
+    const closedOutcome=/LOSS/.test(upper)||/STOP\s*LOSS|\bSL\b/.test(exitReason)
+      ? 'sl_hit'
+      : (exitTarget ? `tp${exitTarget}_hit` as 'tp1_hit'|'tp2_hit'|'tp3_hit' : outcome);
+    normalized={action:'close_signal',instrument:inst,signal_type:side,entry:metrics.entry as number,exit:metrics.exit as number,result_r:typeof metrics.result_r==='number'?metrics.result_r as number:undefined,status:/LOSS/.test(upper)?'closed_sl':exitReason.startsWith('TP')?'closed_tp':'closed_manual',ticket,outcome:closedOutcome,outcome_price:metrics.exit as number};
+  }
+  else if(category==='trade_update'&&outcome)normalized={action:'update_signal',instrument:inst,signal_type:side,entry:normalizedEntry,ticket,outcome,outcome_price:Number.isFinite(outcomePrice)?outcomePrice:undefined};
   else if(category==='regime')normalized={action:'regime',regime:String(metrics.new_regime??metrics.regime??'')};
   return {category,severity,title,body:p,metrics,normalized};
 }

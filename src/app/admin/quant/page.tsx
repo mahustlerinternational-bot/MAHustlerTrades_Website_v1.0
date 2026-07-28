@@ -12,6 +12,7 @@ import {
   formatSignalEntryZone,
   formatSignalPrice,
   signalDisplayLevels,
+  signalOutcomeLabel,
 } from '@/lib/quant/signalLevels';
 
 const signalSchema = z.object({
@@ -51,12 +52,15 @@ export default function AdminQuantPage() {
 
   const regValues = regForm.watch();
   const total     = Object.values(regValues).reduce((a, b) => Number(a) + Number(b), 0);
+  const outcomeRefreshKey = activeSignal
+    ? `${activeSignal.id}:${activeSignal.status}:${String(activeSignal.metadata?.latest_outcome??'')}`
+    : 'no-active-signal';
 
   useEffect(() => {
     authFetch('/api/admin/quant/signals?status=all&limit=20')
       .then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : []))
       .catch(() => setHistory([])).finally(() => setLoadingH(false));
-  }, []);
+  }, [outcomeRefreshKey]);
 
   async function refreshHistory() {
     const d = await authFetch('/api/admin/quant/signals?status=all&limit=20').then(r => r.json()).catch(() => []);
@@ -296,17 +300,19 @@ export default function AdminQuantPage() {
         )}
         {!loadingH && history.length > 0 && (
           <div style={{overflowX:'auto'}}>
-            <div style={{ display:'grid', gridTemplateColumns:'100px 65px 145px 85px 85px 85px 85px 60px 105px 170px', gap:'.75rem', padding:'.6rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.04)', minWidth:'1120px' }}>
-              {['Instrument','Signal','Entry Zone','TP1','TP2','TP3','SL','R:R','Status','Outcome'].map(h => (
+            <div style={{ display:'grid', gridTemplateColumns:'100px 65px 145px 85px 85px 85px 85px 60px 105px 90px 170px', gap:'.75rem', padding:'.6rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.04)', minWidth:'1230px' }}>
+              {['Instrument','Signal','Entry Zone','TP1','TP2','TP3','SL','R:R','Status','Outcome','Actions'].map(h => (
                 <p key={h} style={{ fontSize:'.55rem', letterSpacing:'2px', textTransform:'uppercase', color:'#444' }}>{h}</p>
               ))}
             </div>
             {history.map(sig => {
               const sc = sig.status==='active' ? '#34D399' : sig.status==='closed_tp' ? '#D4AF37' : sig.status==='closed_sl' ? '#FF4757' : '#555';
               const levels = signalDisplayLevels(sig);
+              const outcome = signalOutcomeLabel(sig);
+              const outcomeColor = outcome==='SL HIT' ? '#FF4757' : outcome==='AWAITING' ? '#777' : outcome==='CANCELLED' ? '#666' : '#D4AF37';
               return (
                 <div key={sig.id} className="sig-row"
-                  style={{ display:'grid', gridTemplateColumns:'100px 65px 145px 85px 85px 85px 85px 60px 105px 170px', gap:'.75rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s', minWidth:'1120px' }}>
+                  style={{ display:'grid', gridTemplateColumns:'100px 65px 145px 85px 85px 85px 85px 60px 105px 90px 170px', gap:'.75rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s', minWidth:'1230px' }}>
                   <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.75rem', fontWeight:600 }}>{sig.instrument}</p>
                   <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', fontWeight:700, color: sig.signal_type==='long' ? '#34D399' : '#FF4757' }}>
                     {sig.signal_type==='long' ? 'BUY' : 'SELL'}
@@ -320,6 +326,7 @@ export default function AdminQuantPage() {
                   <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', padding:'2px 7px', border:`1px solid ${sc}44`, color:sc, background:`${sc}11` }}>
                     {sig.status.replaceAll('_',' ')}
                   </span>
+                  <span style={{fontSize:'.58rem',letterSpacing:'.7px',fontWeight:700,color:outcomeColor}}>{outcome}</span>
                   {sig.status === 'active' ? <div style={{display:'flex',gap:'4px'}}>
                     <button onClick={() => closeSignal(sig.id,'closed_tp')} style={{...outcomeBtn,color:'#34D399',borderColor:'rgba(52,211,153,.3)'}}>TP ✓</button>
                     <button onClick={() => closeSignal(sig.id,'closed_sl')} style={{...outcomeBtn,color:'#FF4757',borderColor:'rgba(255,71,87,.3)'}}>SL</button>

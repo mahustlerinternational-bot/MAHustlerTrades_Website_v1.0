@@ -12,6 +12,13 @@ export interface SignalDisplayLevels {
   stopLoss: number;
 }
 
+const OUTCOME_LABELS:Record<string,string>={
+  tp1_hit:'TP1 HIT',
+  tp2_hit:'TP2 HIT',
+  tp3_hit:'TP3 HIT',
+  sl_hit:'SL HIT',
+};
+
 function positiveNumber(value: unknown) {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -90,4 +97,14 @@ export function formatSignalEntryZone(
   const low = formatSignalPrice(instrument, zone.low);
   const high = formatSignalPrice(instrument, zone.high);
   return zone.isRange ? `${low} – ${high}` : low;
+}
+
+export function signalOutcomeLabel(signal:Pick<QuantSignal,'status'|'metadata'>){
+  const recorded=String(signal.metadata?.latest_outcome??'');
+  if(OUTCOME_LABELS[recorded])return OUTCOME_LABELS[recorded];
+  if(signal.status==='closed_tp')return 'TP HIT';
+  if(signal.status==='closed_sl')return 'SL HIT';
+  if(signal.status==='cancelled')return 'CANCELLED';
+  if(signal.status==='closed_manual')return 'CLOSED';
+  return 'AWAITING';
 }
