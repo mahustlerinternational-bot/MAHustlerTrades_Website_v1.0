@@ -4,6 +4,7 @@ import {
   formatSignalEntryZone,
   signalDisplayLevels,
 } from '../src/lib/quant/signalLevels';
+import {inboundTelegramPost} from '../src/lib/integrations/telegramUpdate';
 
 const sample=`**1/12 — SYSTEM ONLINE**
 🤖 **QUANT-SWARM-XAU v3.0**
@@ -155,4 +156,27 @@ const display=signalDisplayLevels({
 });
 assert.equal(formatSignalEntryZone('XAUUSD',display.entryZone),'4,024.00 – 4,025.00');
 assert.deepEqual(display.takeProfits,[4029,4034,4039]);
+
+const supergroupMessage={
+  update_id:1,
+  message:{message_id:10,date:1,text:currentEaBuy,chat:{id:-1002564548970,type:'supergroup'}},
+};
+const inboundSupergroup=inboundTelegramPost(supergroupMessage);
+assert.equal(inboundSupergroup?.post.message_id,10);
+assert.equal(inboundSupergroup?.edited,false);
+
+const channelPost={
+  update_id:2,
+  channel_post:{message_id:11,date:1,text:currentEaSell,chat:{id:-100123,type:'channel'}},
+};
+const inboundChannel=inboundTelegramPost(channelPost);
+assert.equal(inboundChannel?.post.message_id,11);
+assert.equal(inboundChannel?.edited,false);
+
+const privateMessage={
+  update_id:3,
+  message:{message_id:12,date:1,text:'hello',chat:{id:123,type:'private'}},
+};
+assert.equal(inboundTelegramPost(privateMessage),null);
+
 console.log('Telegram parser: 12/12 templates passed');

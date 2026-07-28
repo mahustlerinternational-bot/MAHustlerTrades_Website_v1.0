@@ -7,6 +7,7 @@ import {closeSignal,openSignal} from '@/lib/quant/signalService';
 import {supabaseAdmin} from '@/lib/supabase/server';
 import {consumeLinkCode} from '@/lib/community/linking';
 import {signalEntryZone} from '@/lib/quant/signalLevels';
+import {inboundTelegramPost} from '@/lib/integrations/telegramUpdate';
 import type {QuantSignal} from '@/types';
 
 export const dynamic='force-dynamic';
@@ -34,8 +35,9 @@ export async function POST(req:NextRequest){
       await reply(cfg.bot_token,String(message.chat.id),'✅ Telegram account verified. Return to your MAHustler IB portal to use your private channel invitation.');
       return NextResponse.json({ok:true,linked:true});
     }
-    const edited=Boolean(update.edited_channel_post);const post=update.channel_post??update.edited_channel_post;
-    if(!post)return NextResponse.json({ok:true,ignored:'not a channel post'});
+    const inbound=inboundTelegramPost(update);
+    if(!inbound)return NextResponse.json({ok:true,ignored:'not a channel or group post'});
+    const {post,edited}=inbound;
     const chatId=String(post.chat?.id??''),username=post.chat?.username?`@${post.chat.username}`:'';
     if(cfg.source_chat_id&&cfg.source_chat_id!==chatId&&cfg.source_chat_id.toLowerCase()!==username.toLowerCase())return NextResponse.json({ok:true,ignored:'unapproved channel'});
     const text=String(post.text??post.caption??'').trim();if(!text)return NextResponse.json({ok:true,ignored:'no text or caption'});

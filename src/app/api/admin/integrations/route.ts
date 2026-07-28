@@ -45,7 +45,7 @@ export async function POST(req:NextRequest){
       if(!/^https:\/\//i.test(base)||/localhost|127\.0\.0\.1/i.test(base))throw new Error('NEXT_PUBLIC_APP_URL must be your public HTTPS domain before Telegram webhook activation');
       if(!settings.telegram.webhook_secret)settings.telegram.webhook_secret=`tg_wh_${randomBytes(32).toString('base64url')}`;
       const url=`${base.replace(/\/$/,'')}/api/integrations/telegram/webhook`;
-      const response=await fetch(`https://api.telegram.org/bot${settings.telegram.bot_token}/setWebhook`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,secret_token:settings.telegram.webhook_secret,allowed_updates:['message','channel_post','edited_channel_post'],drop_pending_updates:false}),signal:AbortSignal.timeout(10000)});
+      const response=await fetch(`https://api.telegram.org/bot${settings.telegram.bot_token}/setWebhook`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,secret_token:settings.telegram.webhook_secret,allowed_updates:['message','edited_message','channel_post','edited_channel_post'],drop_pending_updates:false}),signal:AbortSignal.timeout(10000)});
       const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.description??`Telegram HTTP ${response.status}`);
       settings.telegram.inbound_enabled=true;await saveIntegrationSettings(settings,session.userId);return NextResponse.json({success:true,url});
     }
