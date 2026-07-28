@@ -8,6 +8,11 @@ import { toast }               from 'sonner';
 import { useQuantRealtime, useQuantStore, formatPrice } from '@/lib/hooks/useQuantRealtime';
 import type { QuantSignal }    from '@/types';
 import { authFetch }           from '@/lib/utils/authFetch';
+import {
+  formatSignalEntryZone,
+  formatSignalPrice,
+  signalDisplayLevels,
+} from '@/lib/quant/signalLevels';
 
 const signalSchema = z.object({
   instrument:     z.string().min(2),
@@ -279,11 +284,6 @@ export default function AdminQuantPage() {
           <div style={{ width:'3px', height:'16px', background:'linear-gradient(180deg,#888,#444)' }} />
           <p style={{ fontFamily:'Cinzel,serif', fontSize:'.72rem', fontWeight:700, letterSpacing:'1px' }}>Signal History</p>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'110px 70px 100px 100px 100px 65px 100px 170px', gap:'.75rem', padding:'.6rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.04)' }}>
-          {['Instrument','Direction','Entry','TP','SL','R:R','Status',''].map(h => (
-            <p key={h} style={{ fontSize:'.55rem', letterSpacing:'2px', textTransform:'uppercase', color:'#444' }}>{h}</p>
-          ))}
-        </div>
         {loadingH && (
           <div style={{ padding:'3rem', display:'flex', justifyContent:'center' }}>
             <div style={{ width:'18px', height:'18px', border:'2px solid #D4AF37', borderTopColor:'transparent', borderRadius:'50%', animation:'spin .7s linear infinite' }} />
@@ -294,30 +294,42 @@ export default function AdminQuantPage() {
             <p style={{ fontSize:'.78rem', color:'#555' }}>No signals yet. Push one above to get started.</p>
           </div>
         )}
-        {!loadingH && history.map(sig => {
-          const sc = sig.status==='active' ? '#34D399' : sig.status==='closed_tp' ? '#D4AF37' : sig.status==='closed_sl' ? '#FF4757' : '#555';
-          return (
-            <div key={sig.id} className="sig-row"
-              style={{ display:'grid', gridTemplateColumns:'110px 70px 100px 100px 100px 65px 100px 170px', gap:'.75rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s', minWidth:'980px' }}>
-              <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.75rem', fontWeight:600 }}>{sig.instrument}</p>
-              <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', fontWeight:700, color: sig.signal_type==='long' ? '#34D399' : '#FF4757' }}>
-                {sig.signal_type.toUpperCase()}
-              </span>
-              <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#D4AF37' }}>{formatPrice(sig.instrument,sig.entry_price)}</p>
-              <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#34D399' }}>{formatPrice(sig.instrument,sig.tp_price)}</p>
-              <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#FF4757' }}>{formatPrice(sig.instrument,sig.sl_price)}</p>
-              <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#888' }}>{sig.rr_ratio?.toFixed(2) ?? '—'}</p>
-              <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', padding:'2px 7px', border:`1px solid ${sc}44`, color:sc, background:`${sc}11` }}>
-                {sig.status.replace('_',' ')}
-              </span>
-              {sig.status === 'active' ? <div style={{display:'flex',gap:'4px'}}>
-                <button onClick={() => closeSignal(sig.id,'closed_tp')} style={{...outcomeBtn,color:'#34D399',borderColor:'rgba(52,211,153,.3)'}}>TP ✓</button>
-                <button onClick={() => closeSignal(sig.id,'closed_sl')} style={{...outcomeBtn,color:'#FF4757',borderColor:'rgba(255,71,87,.3)'}}>SL</button>
-                <button onClick={() => closeSignal(sig.id,'cancelled')} style={outcomeBtn}>Cancel</button>
-              </div>:<span style={{fontFamily:'JetBrains Mono,monospace',fontSize:'.68rem',color:(sig.result_r??0)>0?'#34D399':(sig.result_r??0)<0?'#FF4757':'#666'}}>{sig.result_r==null?'—':`${sig.result_r>0?'+':''}${Number(sig.result_r).toFixed(2)}R`}</span>}
+        {!loadingH && history.length > 0 && (
+          <div style={{overflowX:'auto'}}>
+            <div style={{ display:'grid', gridTemplateColumns:'100px 65px 145px 85px 85px 85px 85px 60px 105px 170px', gap:'.75rem', padding:'.6rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.04)', minWidth:'1120px' }}>
+              {['Instrument','Signal','Entry Zone','TP1','TP2','TP3','SL','R:R','Status','Outcome'].map(h => (
+                <p key={h} style={{ fontSize:'.55rem', letterSpacing:'2px', textTransform:'uppercase', color:'#444' }}>{h}</p>
+              ))}
             </div>
-          );
-        })}
+            {history.map(sig => {
+              const sc = sig.status==='active' ? '#34D399' : sig.status==='closed_tp' ? '#D4AF37' : sig.status==='closed_sl' ? '#FF4757' : '#555';
+              const levels = signalDisplayLevels(sig);
+              return (
+                <div key={sig.id} className="sig-row"
+                  style={{ display:'grid', gridTemplateColumns:'100px 65px 145px 85px 85px 85px 85px 60px 105px 170px', gap:'.75rem', padding:'.75rem 1.5rem', borderBottom:'1px solid rgba(255,255,255,.03)', alignItems:'center', transition:'background .15s', minWidth:'1120px' }}>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.75rem', fontWeight:600 }}>{sig.instrument}</p>
+                  <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', fontWeight:700, color: sig.signal_type==='long' ? '#34D399' : '#FF4757' }}>
+                    {sig.signal_type==='long' ? 'BUY' : 'SELL'}
+                  </span>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#D4AF37' }}>{formatSignalEntryZone(sig.instrument,levels.entryZone)}</p>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#34D399' }}>{formatSignalPrice(sig.instrument,levels.takeProfits[0])}</p>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#20C997' }}>{formatSignalPrice(sig.instrument,levels.takeProfits[1])}</p>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#38BDF8' }}>{formatSignalPrice(sig.instrument,levels.takeProfits[2])}</p>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#FF4757' }}>{formatSignalPrice(sig.instrument,levels.stopLoss)}</p>
+                  <p style={{ fontFamily:'JetBrains Mono,monospace', fontSize:'.72rem', color:'#888' }}>{sig.rr_ratio?.toFixed(2) ?? '—'}</p>
+                  <span style={{ fontSize:'.6rem', letterSpacing:'1px', textTransform:'uppercase', padding:'2px 7px', border:`1px solid ${sc}44`, color:sc, background:`${sc}11` }}>
+                    {sig.status.replaceAll('_',' ')}
+                  </span>
+                  {sig.status === 'active' ? <div style={{display:'flex',gap:'4px'}}>
+                    <button onClick={() => closeSignal(sig.id,'closed_tp')} style={{...outcomeBtn,color:'#34D399',borderColor:'rgba(52,211,153,.3)'}}>TP ✓</button>
+                    <button onClick={() => closeSignal(sig.id,'closed_sl')} style={{...outcomeBtn,color:'#FF4757',borderColor:'rgba(255,71,87,.3)'}}>SL</button>
+                    <button onClick={() => closeSignal(sig.id,'cancelled')} style={outcomeBtn}>Cancel</button>
+                  </div>:<span style={{fontFamily:'JetBrains Mono,monospace',fontSize:'.68rem',color:(sig.result_r??0)>0?'#34D399':(sig.result_r??0)<0?'#FF4757':'#666'}}>{sig.result_r==null?'—':`${sig.result_r>0?'+':''}${Number(sig.result_r).toFixed(2)}R`}</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
