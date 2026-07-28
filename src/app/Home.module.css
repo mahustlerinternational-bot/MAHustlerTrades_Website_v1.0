@@ -40,3 +40,47 @@
 @media(max-width:1050px){.hero{grid-template-columns:1fr;min-height:auto}.heroCopy{max-width:850px}.commandCard{width:100%;max-width:680px;animation:cardIn .8s .1s both}.capabilityGrid{grid-template-columns:1fr 1fr}.journey,.quantSection{grid-template-columns:1fr}.quantVisual{max-width:680px}.ecosystemGrid{grid-template-columns:1fr 1fr}.stats{grid-template-columns:repeat(3,1fr)}.stats div:nth-child(3){border:0}}
 @media(max-width:700px){.hero{padding:116px 20px 68px}.hero h1{font-size:clamp(2.35rem,12vw,3.5rem);letter-spacing:-1px}.heroActions{align-items:stretch;flex-direction:column}.goldButton,.outlineButton{width:100%}.trustRow{align-items:flex-start;flex-direction:column;gap:9px}.commandTop{align-items:flex-start;flex-direction:column}.marketStrip,.workflowGrid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr;padding:24px 14px}.stats div{border-right:0;border-bottom:1px solid rgba(212,175,55,.1)}.stats div:last-child{grid-column:1/-1}.capabilities,.ecosystem,.audience{padding-block:76px}.capabilityGrid,.ecosystemGrid,.audience>div:last-child{grid-template-columns:1fr}.capabilityCard{min-height:0}.journey,.quantSection{padding-block:78px}.quantVisual{min-height:400px;padding:24px 15px}.quantFlow{grid-template-columns:1fr}.footer{grid-template-columns:1fr;text-align:center}.footer nav{justify-content:center}.footer>div{align-items:center}}
 @media(prefers-reduced-motion:reduce){.heroGlow,.heroOrb,.commandCard,.capabilityTicker>div{animation:none}.page *{scroll-behavior:auto!important}}
+
+/* Shared public-page heading hierarchy. */
+.hero h1 {
+  font-weight: 900;
+}
+
+.eyebrow {
+  font-weight: 700 !important;
+}
+
+.sectionIntro,
+.journeyIntro,
+.quantCopy,
+.audience > div:first-child {
+  text-align: left;
+}
+
+.sectionIntro h2,
+.journey h2,
+.quantCopy h2,
+.centerIntro h2,
+.audience h2,
+.closing h2 {
+  font-weight: 900;
+  letter-spacing: -.65px;
+}
+
+.capabilityCard h3,
+.journeySteps h3,
+.ecosystemGrid h3,
+.audience h3 {
+  font-weight: 800;
+}
+
+@media (max-width: 700px) {
+  .sectionIntro h2,
+  .journey h2,
+  .quantCopy h2,
+  .centerIntro h2,
+  .audience h2,
+  .closing h2 {
+    letter-spacing: -.35px;
+  }
+}
