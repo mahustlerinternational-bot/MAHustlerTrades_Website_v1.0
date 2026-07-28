@@ -6,6 +6,12 @@ import {toast} from 'sonner';
 
 import {supabase} from '@/lib/supabase/client';
 import {mergeSignalSnapshots, unseenReleasedSignals} from '@/lib/quant/liveSignal';
+import {
+  formatSignalEntryZone,
+  formatSignalPrice,
+  signalDisplayLevels,
+  signalEntryZone,
+} from '@/lib/quant/signalLevels';
 import {authFetch} from '@/lib/utils/authFetch';
 import type {QuantSignal} from '@/types';
 import SignalHistoryPanel from './SignalHistoryPanel';
@@ -14,6 +20,15 @@ const SOUND_PREFERENCE_KEY = 'maht-live-signal-sound';
 
 function signalLabel(signal: QuantSignal) {
   return `${signal.instrument} ${signal.signal_type === 'long' ? 'BUY' : 'SELL'}`;
+}
+
+function notificationDescription(signal: QuantSignal) {
+  const levels = signalDisplayLevels(signal);
+  return [
+    `Zone ${formatSignalEntryZone(signal.instrument, levels.entryZone)}`,
+    ...levels.takeProfits.map((value, index) => `TP${index + 1} ${formatSignalPrice(signal.instrument, value)}`),
+    `SL ${formatSignalPrice(signal.instrument, levels.stopLoss)}`,
+  ].join(' · ');
 }
 
 export default function LiveSignalWorkspace({
@@ -136,7 +151,7 @@ export default function LiveSignalWorkspace({
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
     noticeTimer.current = window.setTimeout(() => setNotice(null), 12_000);
     toast.success(`New ${signalLabel(signal)} signal released`, {
-      description: `Entry ${signal.entry_price} · TP ${signal.tp_price} · SL ${signal.sl_price}`,
+      description: notificationDescription(signal),
       duration: 12_000,
       icon: '⚡',
     });
@@ -223,6 +238,7 @@ export default function LiveSignalWorkspace({
 
   const activeSignal =
     signals.find(signal => signal.status === 'active') ?? null;
+  const activeLevels = activeSignal ? signalDisplayLevels(activeSignal) : null;
 
   return (
     <>
@@ -230,13 +246,14 @@ export default function LiveSignalWorkspace({
         <style>{`
           @keyframes signalNoticeIn{from{opacity:0;transform:translateY(-8px) scale(.99)}to{opacity:1;transform:none}}
           @keyframes signalHalo{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,0)}50%{box-shadow:0 0 35px 2px rgba(212,175,55,.16)}}
-          @media(max-width:640px){.live-signal-levels{grid-template-columns:1fr!important}.live-signal-controls{width:100%;justify-content:flex-start!important}}
+          @media(max-width:1050px){.live-signal-levels{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+          @media(max-width:640px){.live-signal-levels{grid-template-columns:repeat(2,minmax(0,1fr))!important}.live-signal-controls{width:100%;justify-content:flex-start!important}.live-signal-entry-zone{grid-column:1/-1}}
         `}</style>
         {notice && (
           <div style={noticeBar}>
             <BellRing size={15} />
             <strong>NEW SIGNAL RELEASED</strong>
-            <span>{signalLabel(notice)} · Entry {String(notice.entry_price)}</span>
+            <span>{signalLabel(notice)} · Entry Zone {formatSignalEntryZone(notice.instrument, signalEntryZone(notice))}</span>
           </div>
         )}
         <header style={cardHeader}>
@@ -244,7 +261,7 @@ export default function LiveSignalWorkspace({
             <span style={{width: 8, height: 8, borderRadius: '50%', background: activeSignal ? '#00D084' : '#555', animation: activeSignal ? 'pulse 1.5s infinite' : 'none'}} />
             <p style={title}>{activeSignal ? 'Live Signal Active' : 'Live Signal Scanner'}</p>
             {activeSignal && <strong style={{fontFamily: 'Cinzel,serif', fontSize: '.92rem'}}>{activeSignal.instrument}</strong>}
-            {activeSignal && <span style={{...sideBadge, color: activeSignal.signal_type === 'long' ? '#00D084' : '#FF4757'}}>{activeSignal.signal_type.toUpperCase()}</span>}
+            {activeSignal && <span style={{...sideBadge, color: activeSignal.signal_type === 'long' ? '#00D084' : '#FF4757'}}>{activeSignal.signal_type === 'long' ? 'BUY' : 'SELL'}</span>}
           </div>
           <div className="live-signal-controls" style={controls}>
             <span style={{...syncBadge, color: connected ? '#34D399' : '#F59E0B'}}>
@@ -258,17 +275,19 @@ export default function LiveSignalWorkspace({
           </div>
         </header>
 
-        {activeSignal ? (
+        {activeSignal && activeLevels ? (
           <div style={{padding: '16px 18px 18px'}}>
             <div className="live-signal-levels" style={levels}>
               {[
-                {label: 'TP', value: activeSignal.tp_price, color: '#00D084', background: 'rgba(0,208,132,.06)'},
-                {label: 'ENTRY', value: activeSignal.entry_price, color: '#FFD700', background: 'rgba(212,175,55,.08)'},
-                {label: 'SL', value: activeSignal.sl_price, color: '#FF4757', background: 'rgba(255,71,87,.06)'},
+                {label: 'ENTRY ZONE', value: formatSignalEntryZone(activeSignal.instrument, activeLevels.entryZone), color: '#FFD700', background: 'rgba(212,175,55,.08)', className: 'live-signal-entry-zone'},
+                {label: 'TP1', value: formatSignalPrice(activeSignal.instrument, activeLevels.takeProfits[0]), color: '#00D084', background: 'rgba(0,208,132,.06)', className: ''},
+                {label: 'TP2', value: formatSignalPrice(activeSignal.instrument, activeLevels.takeProfits[1]), color: '#20C997', background: 'rgba(32,201,151,.055)', className: ''},
+                {label: 'TP3', value: formatSignalPrice(activeSignal.instrument, activeLevels.takeProfits[2]), color: '#38BDF8', background: 'rgba(56,189,248,.055)', className: ''},
+                {label: 'SL', value: formatSignalPrice(activeSignal.instrument, activeLevels.stopLoss), color: '#FF4757', background: 'rgba(255,71,87,.06)', className: ''},
               ].map(level => (
-                <div key={level.label} style={{...levelCard, background: level.background, borderLeftColor: level.color}}>
+                <div key={level.label} className={level.className} style={{...levelCard, background: level.background, borderLeftColor: level.color}}>
                   <span style={{color: level.color}}>{level.label}</span>
-                  <strong style={{color: level.color}}>{String(level.value)}</strong>
+                  <strong style={{color: level.color}}>{level.value}</strong>
                 </div>
               ))}
             </div>
@@ -304,9 +323,8 @@ const sideBadge: React.CSSProperties = {fontSize: '.52rem', padding: '3px 7px', 
 const controls: React.CSSProperties = {display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '7px', flexWrap: 'wrap'};
 const syncBadge: React.CSSProperties = {display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '.48rem', letterSpacing: '1.2px'};
 const soundButton: React.CSSProperties = {display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#090909', border: '1px solid rgba(212,175,55,.18)', padding: '7px 9px', fontFamily: 'inherit', fontSize: '.47rem', letterSpacing: '.8px', cursor: 'pointer'};
-const levels: React.CSSProperties = {display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: '7px'};
-const levelCard: React.CSSProperties = {display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '9px', padding: '11px 13px', borderLeft: '3px solid', fontFamily: 'JetBrains Mono,monospace', fontSize: '.66rem'};
+const levels: React.CSSProperties = {display: 'grid', gridTemplateColumns: 'repeat(5,minmax(0,1fr))', gap: '7px'};
+const levelCard: React.CSSProperties = {minHeight: '66px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', gap: '7px', padding: '11px 13px', borderLeft: '3px solid', fontFamily: 'JetBrains Mono,monospace', fontSize: '.6rem'};
 const meta: React.CSSProperties = {display: 'flex', gap: '16px', flexWrap: 'wrap', color: '#5D5D5D', fontSize: '.52rem', marginTop: '11px'};
 const empty: React.CSSProperties = {minHeight: 125, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '7px', color: '#666', fontSize: '.62rem', textAlign: 'center'};
 const footer: React.CSSProperties = {display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', padding: '8px 18px', borderTop: '1px solid rgba(255,255,255,.04)', color: '#4E4E4E', fontSize: '.47rem'};
-

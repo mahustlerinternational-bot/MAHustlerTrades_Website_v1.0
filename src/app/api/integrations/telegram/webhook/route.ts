@@ -6,6 +6,8 @@ import {sendDiscordMessage} from '@/lib/integrations/broadcast';
 import {closeSignal,openSignal} from '@/lib/quant/signalService';
 import {supabaseAdmin} from '@/lib/supabase/server';
 import {consumeLinkCode} from '@/lib/community/linking';
+import {signalEntryZone} from '@/lib/quant/signalLevels';
+import type {QuantSignal} from '@/types';
 
 export const dynamic='force-dynamic';
 function secureEqual(a:string,b:string){const aa=Buffer.from(a),bb=Buffer.from(b);return aa.length===bb.length&&timingSafeEqual(aa,bb);}
@@ -66,12 +68,17 @@ export async function POST(req:NextRequest){
       try{
         const n=event.normalized;
         if(n?.action==='open_signal'&&n.instrument&&n.signal_type&&n.entry&&n.tp1&&n.sl){
-          const signal=await openSignal({external_id:`tg:${chatId}:${post.message_id}:${index}`,instrument:n.instrument,signal_type:n.signal_type,entry_price:n.entry,tp_price:n.tp1,sl_price:n.sl,analysis_notes:n.notes,metadata:{take_profits:[n.tp1,n.tp2,n.tp3].filter(Boolean),telegram_message_id:post.message_id}},'ea',null,{cancelExisting:false,externalBroadcast:false});
+          const signal=await openSignal({external_id:`tg:${chatId}:${post.message_id}:${index}`,instrument:n.instrument,signal_type:n.signal_type,entry_price:n.entry,tp_price:n.tp1,sl_price:n.sl,analysis_notes:n.notes,metadata:{entry_zone:n.entry_zone??null,take_profits:[n.tp1,n.tp2,n.tp3].filter((value):value is number=>typeof value==='number'),telegram_message_id:post.message_id}},'ea',null,{cancelExisting:false,externalBroadcast:false});
           normalization={signal_id:signal.id};
         }else if(n?.action==='close_signal'&&n.instrument&&n.signal_type&&n.entry&&n.exit){
-          const match=await supabaseAdmin.from('quant_signals').select('*').eq('instrument',n.instrument).eq('signal_type',n.signal_type).eq('entry_price',n.entry).eq('status','active').order('broadcasted_at',{ascending:false}).limit(1).maybeSingle();
-          if(match.data){
-            const closed=await closeSignal({id:match.data.id,status:n.status??'closed_manual',closed_price:n.exit,externalBroadcast:false});
+          const candidates=await supabaseAdmin.from('quant_signals').select('*').eq('instrument',n.instrument).eq('signal_type',n.signal_type).eq('status','active').order('broadcasted_at',{ascending:false}).limit(20);
+          const match=(candidates.data??[] as QuantSignal[]).find(candidate=>{
+            if(Math.abs(Number(candidate.entry_price)-Number(n.entry))<0.00001)return true;
+            const zone=signalEntryZone(candidate);
+            return zone.isRange&&Number(n.entry)>=zone.low&&Number(n.entry)<=zone.high;
+          })??null;
+          if(match){
+            const closed=await closeSignal({id:match.id,status:n.status??'closed_manual',closed_price:n.exit,externalBroadcast:false});
             const metadata={...(closed.metadata??{}),telegram_ticket:n.ticket??null};
             const patch:Record<string,unknown>={metadata};if(n.result_r!=null)patch.result_r=n.result_r;
             await supabaseAdmin.from('quant_signals').update(patch).eq('id',closed.id);normalization={signal_id:closed.id,matched:true};
