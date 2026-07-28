@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 import type { QuantSignal, SignalSource, SignalStatus, SignalType } from '@/types';
 import { broadcastSignal } from '@/lib/integrations/broadcast';
 
-export type SignalOutcomeCode='tp1_hit'|'tp2_hit'|'tp3_hit'|'sl_hit';
+export type SignalOutcomeCode='tp1_hit'|'tp2_hit'|'tp3_hit'|'sl_hit'|'breakeven'|'entry_close';
 
 export interface OpenSignalInput{
   external_id?:string|null;instrument:string;signal_type:SignalType;entry_price:number;tp_price:number;sl_price:number;
@@ -65,6 +65,7 @@ export async function closeSignal(input:{id?:string;external_id?:string;status:S
 
 function outcomeTargetPrice(signal:QuantSignal,outcome:SignalOutcomeCode){
   if(outcome==='sl_hit')return Number(signal.sl_price);
+  if(outcome==='breakeven'||outcome==='entry_close')return Number(signal.entry_price);
   const index=Number(outcome[2])-1;
   const raw=Array.isArray(signal.metadata?.take_profits)?signal.metadata.take_profits:[];
   const parsed=Number(raw[index]??(index===0?signal.tp_price:null));
@@ -94,6 +95,13 @@ export async function updateSignalOutcome(input:{
     ? existing.metadata.outcome_events.filter((event):event is Record<string,unknown>=>Boolean(event)&&typeof event==='object')
     : [];
   if(input.event_id&&previousEvents.some(event=>event.event_id===input.event_id))return existing;
+  // The EA channel may publish a second celebratory post for the same target.
+  // Record a lifecycle milestone only once unless this call explicitly closes
+  // the signal (for example, a detailed trade-close message after TP3).
+  if(
+    !input.close_status
+    &&previousEvents.some(event=>event.outcome===input.outcome)
+  )return existing;
   const price=input.price!=null&&Number.isFinite(Number(input.price))
     ? Number(input.price)
     : outcomeTargetPrice(existing,input.outcome);
@@ -123,7 +131,13 @@ export async function updateSignalOutcome(input:{
     ...(input.ticket?{telegram_ticket:input.ticket}:{}),
   };
   const terminalStatus=input.close_status
-    ??(input.outcome==='tp3_hit'?'closed_tp':input.outcome==='sl_hit'?'closed_sl':null);
+    ??(input.outcome==='tp3_hit'
+      ?'closed_tp'
+      :input.outcome==='sl_hit'
+        ?'closed_sl'
+        :input.outcome==='breakeven'||input.outcome==='entry_close'
+          ?'closed_manual'
+          :null);
   let signal=existing;
   if(terminalStatus){
     signal=await closeSignal({

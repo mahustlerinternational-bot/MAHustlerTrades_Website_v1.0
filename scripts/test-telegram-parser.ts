@@ -199,6 +199,50 @@ assert.equal(slUpdate.normalized?.action,'update_signal');
 assert.equal(slUpdate.normalized?.outcome,'sl_hit');
 assert.equal(slUpdate.normalized?.outcome_price,4133.2);
 
+const [realTp1Update]=parseTelegramPost(`XAUUSD SIGNAL
+🎯 Congrats we just Hit!  TP1! - 50 Pips Smashed!`);
+assert.equal(realTp1Update.category,'trade_update');
+assert.equal(realTp1Update.normalized?.action,'update_signal');
+assert.equal(realTp1Update.normalized?.outcome,'tp1_hit');
+
+const [realTp2Update]=parseTelegramPost(`XAUUSD SIGNAL
+🎯 Congrats we just Hit!  TP2! - 100 Pips Smashed!
+
+Move your BE at TP1 to Lock in Profits!`);
+assert.equal(realTp2Update.normalized?.outcome,'tp2_hit');
+
+const [realTp3Update]=parseTelegramPost(`🎯 Congrats we just Hit!  TP3! - 150 Pips Smashed!`);
+assert.equal(realTp3Update.normalized?.outcome,'tp3_hit');
+
+const [realRiskUpdate]=parseTelegramPost(`XAUUSD SIGNAL
+
+😰Sorry it Hit our Risk! Let's Focus on the Next Setup!💪`);
+assert.equal(realRiskUpdate.category,'trade_update');
+assert.equal(realRiskUpdate.severity,'critical');
+assert.equal(realRiskUpdate.normalized?.action,'update_signal');
+assert.equal(realRiskUpdate.normalized?.outcome,'sl_hit');
+
+const [breakevenUpdate]=parseTelegramPost(`XAUUSD SIGNAL
+Trade closed at breakeven.`);
+assert.equal(breakevenUpdate.normalized?.outcome,'breakeven');
+
+const [entryCloseUpdate]=parseTelegramPost(`XAUUSD SIGNAL
+Price returned to the entry zone. Signal closed.`);
+assert.equal(entryCloseUpdate.normalized?.outcome,'entry_close');
+
+const [beInstruction]=parseTelegramPost(`Move your BE at TP1 to lock in profits.`);
+assert.equal(beInstruction.normalized,undefined);
+
+const [dailySummary]=parseTelegramPost(`DAILY SUMMARY
+TP1 Hits: 4
+TP2 Hits: 2
+TP3 Hits: 1
+BE Hits: 1`);
+assert.equal(dailySummary.normalized,undefined);
+
+assert.equal(signalOutcomeLabel({status:'closed_manual',metadata:{latest_outcome:'breakeven'}}),'BREAKEVEN');
+assert.equal(signalOutcomeLabel({status:'closed_manual',metadata:{latest_outcome:'entry_close'}}),'ENTRY CLOSE');
+
 const supergroupMessage={
   update_id:1,
   message:{message_id:10,date:1,text:currentEaBuy,chat:{id:-1002564548970,type:'supergroup'}},

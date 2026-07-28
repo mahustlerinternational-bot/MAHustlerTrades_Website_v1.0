@@ -41,7 +41,27 @@ async function findActiveSignal(input:{instrument?:string;signal_type?:string;en
     });
     if(entryMatch)return entryMatch;
   }
-  return candidates.length===1?candidates[0]:null;
+  // The connected EA intentionally has one current setup at a time. Its
+  // outcome notifications do not contain a ticket, direction, or entry, so
+  // fall back only to the newest active Telegram-created EA signal. Never
+  // attach an anonymous Telegram outcome to a manually-created admin signal.
+  const telegramEa=candidates.find(candidate=>
+    candidate.source==='ea'&&String(candidate.external_id??'').startsWith('tg:'),
+  );
+  return telegramEa??(candidates.length===1?candidates[0]:null);
+}
+
+async function retirePreviousTelegramEaSignals(instrument:string,keepExternalId:string){
+  const now=new Date().toISOString();
+  const result=await supabaseAdmin
+    .from('quant_signals')
+    .update({status:'cancelled',closed_at:now})
+    .eq('instrument',instrument)
+    .eq('source','ea')
+    .eq('status','active')
+    .neq('external_id',keepExternalId)
+    .like('external_id','tg:%');
+  if(result.error)throw new Error(result.error.message);
 }
 
 export async function POST(req:NextRequest){
@@ -97,7 +117,9 @@ export async function POST(req:NextRequest){
       try{
         const n=event.normalized;
         if(n?.action==='open_signal'&&n.instrument&&n.signal_type&&n.entry&&n.tp1&&n.sl){
-          const signal=await openSignal({external_id:`tg:${chatId}:${post.message_id}:${index}`,instrument:n.instrument,signal_type:n.signal_type,entry_price:n.entry,tp_price:n.tp1,sl_price:n.sl,analysis_notes:n.notes,metadata:{entry_zone:n.entry_zone??null,take_profits:[n.tp1,n.tp2,n.tp3].filter((value):value is number=>typeof value==='number'),telegram_message_id:post.message_id,...(n.ticket?{telegram_ticket:n.ticket}:{})}},'ea',null,{cancelExisting:false,externalBroadcast:false});
+          const signalExternalId=`tg:${chatId}:${post.message_id}:${index}`;
+          await retirePreviousTelegramEaSignals(n.instrument,signalExternalId);
+          const signal=await openSignal({external_id:signalExternalId,instrument:n.instrument,signal_type:n.signal_type,entry_price:n.entry,tp_price:n.tp1,sl_price:n.sl,analysis_notes:n.notes,metadata:{entry_zone:n.entry_zone??null,take_profits:[n.tp1,n.tp2,n.tp3].filter((value):value is number=>typeof value==='number'),telegram_message_id:post.message_id,...(n.ticket?{telegram_ticket:n.ticket}:{})}},'ea',null,{cancelExisting:false,externalBroadcast:false});
           normalization={signal_id:signal.id};
         }else if(n?.action==='update_signal'&&n.outcome){
           const match=await findActiveSignal(n);

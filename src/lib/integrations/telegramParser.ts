@@ -5,7 +5,7 @@ export interface ParsedTelegramEvent{
   normalized?:{
     action:'open_signal'|'update_signal'|'close_signal'|'regime';instrument?:string;signal_type?:SignalType;entry?:number;tp1?:number;tp2?:number;tp3?:number;sl?:number;
     entry_zone?:{low:number;high:number};exit?:number;result_r?:number;status?:'closed_tp'|'closed_sl'|'closed_manual';ticket?:string;regime?:string;notes?:string;
-    outcome?:'tp1_hit'|'tp2_hit'|'tp3_hit'|'sl_hit';outcome_price?:number;
+    outcome?:'tp1_hit'|'tp2_hit'|'tp3_hit'|'sl_hit'|'breakeven'|'entry_close';outcome_price?:number;
   };
 }
 
@@ -35,9 +35,22 @@ function titleOf(text:string){
 function instrument(text:string){return plain(text).match(/\bXAUUSDm?\b/i)?.[0]?.replace(/m$/i,'').toUpperCase();}
 function direction(text:string):SignalType|undefined{const p=plain(text).toUpperCase();return /\bBUY\b/.test(p)?'long':/\bSELL\b/.test(p)?'short':undefined;}
 function detectedOutcome(upper:string){
-  const target=upper.match(/\bTP\s*([123])\s*(?:HIT|REACHED)\b/);
+  const target=upper.match(/\bTP\s*([123])\s*(?:HIT|REACHED)\b/)
+    ??upper.match(/\b(?:HIT|REACHED)\b[\s\S]{0,40}\bTP\s*([123])\b/);
   if(target)return `tp${target[1]}_hit` as 'tp1_hit'|'tp2_hit'|'tp3_hit';
-  if(/\b(?:STOP\s*LOSS|SL)\s*(?:HIT|TRIGGERED|REACHED)\b/.test(upper))return 'sl_hit' as const;
+  if(
+    /\b(?:STOP\s*LOSS|SL)\s*(?:HIT|TRIGGERED|REACHED)\b/.test(upper)
+    ||/\bHIT\s+(?:OUR|THE)\s+RISK\b/.test(upper)
+  )return 'sl_hit' as const;
+  if(
+    /\b(?:BREAKEVEN|BREAK\s*EVEN|BE)\s*(?:HIT|TRIGGERED|REACHED)\b/.test(upper)
+    ||/\b(?:HIT|TRIGGERED|REACHED)\s*(?:THE\s+)?(?:BREAKEVEN|BREAK\s*EVEN|BE)\b/.test(upper)
+    ||/\bCLOSED?\s+(?:AT|ON)\s+(?:BREAKEVEN|BREAK\s*EVEN|BE)\b/.test(upper)
+  )return 'breakeven' as const;
+  if(
+    /\b(?:RETURNED?|CAME|BACK)\s+(?:BACK\s+)?TO\s+(?:THE\s+)?ENTRY(?:\s+ZONE)?\b/.test(upper)
+    ||/\bCLOSED?\s+(?:AT|ON)\s+(?:THE\s+)?ENTRY(?:\s+ZONE)?\b/.test(upper)
+  )return 'entry_close' as const;
   return undefined;
 }
 
@@ -85,6 +98,8 @@ function parseSection(body:string):ParsedTelegramEvent{
         ? Number(metrics.tp3_reached??metrics.tp3)
         : outcome==='sl_hit'
           ? Number(metrics.sl_reached??metrics.stop_loss??metrics.exit)
+          : outcome==='breakeven'||outcome==='entry_close'
+            ? Number(metrics.exit??metrics.entry)
           : NaN;
   const ticket=typeof metrics.ticket==='string'?metrics.ticket.replace(/^#/,''):undefined;
   if(category==='signal'&&inst&&side&&normalizedEntry&&typeof metrics.tp1==='number'&&typeof metrics.stop_loss==='number')normalized={action:'open_signal',instrument:inst,signal_type:side,entry:normalizedEntry,entry_zone:zone?{low:zone.low,high:zone.high}:undefined,tp1:metrics.tp1 as number,tp2:metrics.tp2 as number|undefined,tp3:metrics.tp3 as number|undefined,sl:metrics.stop_loss as number,notes:typeof metrics.setup_tags==='string'?metrics.setup_tags:undefined,ticket};

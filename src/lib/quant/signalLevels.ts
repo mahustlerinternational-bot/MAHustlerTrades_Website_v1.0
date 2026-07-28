@@ -17,6 +17,8 @@ const OUTCOME_LABELS:Record<string,string>={
   tp2_hit:'TP2 HIT',
   tp3_hit:'TP3 HIT',
   sl_hit:'SL HIT',
+  breakeven:'BREAKEVEN',
+  entry_close:'ENTRY CLOSE',
 };
 
 function positiveNumber(value: unknown) {
