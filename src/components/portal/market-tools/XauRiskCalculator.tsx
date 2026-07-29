@@ -47,6 +47,7 @@ export default function XauRiskCalculator({
   const [entry, setEntry] = useState(initialSettings?.entry ?? '4100');
   const [stop, setStop] = useState(initialSettings?.stopLoss ?? '4090');
   const [target, setTarget] = useState(initialSettings?.takeProfit ?? '4120');
+  const [leverage, setLeverage] = useState(initialSettings?.leverage ?? '100');
   const [contractSize, setContractSize] = useState(initialSettings?.contractSize ?? '100');
   const [minimumLot, setMinimumLot] = useState(initialSettings?.minimumLot ?? '0.01');
   const [lotStep, setLotStep] = useState(initialSettings?.lotStep ?? '0.01');
@@ -60,11 +61,12 @@ export default function XauRiskCalculator({
       entry,
       stopLoss: stop,
       takeProfit: target,
+      leverage,
       contractSize,
       minimumLot,
       lotStep,
     });
-  }, [balance, contractSize, direction, entry, lotStep, minimumLot, onSettingsChange, risk, stop, target]);
+  }, [balance, contractSize, direction, entry, leverage, lotStep, minimumLot, onSettingsChange, risk, stop, target]);
 
   const result = useMemo(() => calculateXauPosition({
     balance: Number(balance),
@@ -72,10 +74,11 @@ export default function XauRiskCalculator({
     entry: Number(entry),
     stopLoss: Number(stop),
     takeProfit: target ? Number(target) : null,
+    leverage: Number(leverage),
     contractSize: Number(contractSize),
     minimumLot: Number(minimumLot),
     lotStep: Number(lotStep),
-  }), [balance, contractSize, entry, lotStep, minimumLot, risk, stop, target]);
+  }), [balance, contractSize, entry, leverage, lotStep, minimumLot, risk, stop, target]);
 
   const directionalError =
     direction === 'buy' && Number(stop) >= Number(entry)
@@ -131,6 +134,7 @@ export default function XauRiskCalculator({
           <div className="risk-field-grid" style={fieldGrid}>
             <NumericField label="ACCOUNT BALANCE (USD)" value={balance} onChange={setBalance} step="100" />
             <NumericField label="RISK PER TRADE (%)" value={risk} onChange={setRisk} step="0.1" />
+            <NumericField label="ACCOUNT LEVERAGE (1:X)" value={leverage} onChange={setLeverage} step="1" hint="Enter 100 for 1:100 leverage" />
             <NumericField label="ENTRY PRICE" value={entry} onChange={setEntry} step="0.01" />
             <NumericField label="STOP LOSS" value={stop} onChange={setStop} step="0.01" />
             <NumericField label="TAKE PROFIT (OPTIONAL)" value={target} onChange={setTarget} step="0.01" />
@@ -155,6 +159,11 @@ export default function XauRiskCalculator({
               <ShieldAlert size={14} /> Selected risk is above 2% of account balance.
             </div>
           )}
+          {result.valid && result.estimatedMargin > Number(balance) && (
+            <div style={{...warningBox, color: '#F59E0B', borderColor: 'rgba(245,158,11,.2)', background: 'rgba(245,158,11,.05)'}}>
+              <ShieldAlert size={14} /> Estimated margin exceeds the account balance. Reduce the lot size or confirm the broker&apos;s effective XAUUSD leverage and margin rules.
+            </div>
+          )}
         </div>
 
         <div style={resultSide}>
@@ -171,16 +180,18 @@ export default function XauRiskCalculator({
             <Result label="Actual risk" value={`${money(result.actualRisk)} · ${result.actualRiskPercent.toFixed(2)}%`} />
             <Result label="Stop distance" value={`$${result.stopDistance.toFixed(2)} · ${result.stopPoints.toFixed(0)} pts`} />
             <Result label="Gold exposure" value={`${result.exposureOunces.toFixed(2)} oz`} />
+            <Result label={`Estimated margin · 1:${leverage || '—'}`} value={money(result.estimatedMargin)} />
+            <Result label="Margin / balance" value={`${result.marginBalancePercent.toFixed(2)}%`} />
             <Result label="Reward : risk" value={result.rewardRiskRatio === null ? '—' : `1 : ${result.rewardRiskRatio.toFixed(2)}`} />
             <Result label="Projected profit" value={result.projectedProfit === null ? '—' : money(result.projectedProfit)} />
           </div>
           <p style={formula}>
-            Size = risk budget ÷ (entry-to-stop distance × contract size). The result is rounded down to the selected broker lot step so the target risk is not exceeded.
+            Size = risk budget ÷ (entry-to-stop distance × contract size). Estimated margin = entry price × contract size × lots ÷ leverage. Leverage affects required margin, not the stop-based risk size.
           </p>
         </div>
       </div>
       <div style={disclaimer}>
-        Calculator results are estimates, not financial advice or an order instruction. XAUUSD contract size, tick value, spread, commission, currency conversion and minimum volume vary by broker. Confirm the symbol specification in MT5 before trading.
+        Calculator results are estimates, not financial advice or an order instruction. XAUUSD leverage may differ from the account&apos;s headline leverage and can be limited by broker tiers, symbol-specific margin rates or market conditions. Contract size, tick value, spread, commission, currency conversion and minimum volume also vary. Confirm the XAUUSD symbol specification in MT5 before trading.
       </div>
     </section>
   );

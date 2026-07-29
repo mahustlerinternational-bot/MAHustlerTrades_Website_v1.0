@@ -6,6 +6,7 @@ export interface XauRiskInput {
   entry: number;
   stopLoss: number;
   takeProfit?: number | null;
+  leverage?: number;
   contractSize?: number;
   minimumLot?: number;
   lotStep?: number;
@@ -23,6 +24,8 @@ export interface XauRiskResult {
   actualRisk: number;
   actualRiskPercent: number;
   exposureOunces: number;
+  estimatedMargin: number;
+  marginBalancePercent: number;
   rewardRiskRatio: number | null;
   projectedProfit: number | null;
   belowMinimum: boolean;
@@ -38,6 +41,7 @@ function decimalPlaces(value: number) {
 }
 
 export function calculateXauPosition(input: XauRiskInput): XauRiskResult {
+  const leverage = input.leverage ?? 100;
   const contractSize = input.contractSize ?? 100;
   const minimumLot = input.minimumLot ?? 0.01;
   const lotStep = input.lotStep ?? 0.01;
@@ -53,13 +57,15 @@ export function calculateXauPosition(input: XauRiskInput): XauRiskResult {
     actualRisk: 0,
     actualRiskPercent: 0,
     exposureOunces: 0,
+    estimatedMargin: 0,
+    marginBalancePercent: 0,
     rewardRiskRatio: null,
     projectedProfit: null,
     belowMinimum: false,
   };
 
-  if (![input.balance, input.riskPercent, input.entry, input.stopLoss, contractSize, minimumLot, lotStep].every(finitePositive)) {
-    return {...empty, error: 'Enter positive values for balance, risk, prices and broker specifications.'};
+  if (![input.balance, input.riskPercent, input.entry, input.stopLoss, leverage, contractSize, minimumLot, lotStep].every(finitePositive)) {
+    return {...empty, error: 'Enter positive values for balance, risk, prices, leverage and broker specifications.'};
   }
   if (input.entry === input.stopLoss) {
     return {...empty, error: 'Entry and stop-loss prices must be different.'};
@@ -81,6 +87,7 @@ export function calculateXauPosition(input: XauRiskInput): XauRiskResult {
       ? Math.abs(Number(input.takeProfit) - input.entry)
       : null;
   const rewardRiskRatio = rewardDistance === null ? null : rewardDistance / stopDistance;
+  const estimatedMargin = recommendedLots * contractSize * input.entry / leverage;
 
   return {
     valid: true,
@@ -94,6 +101,8 @@ export function calculateXauPosition(input: XauRiskInput): XauRiskResult {
     actualRisk,
     actualRiskPercent: input.balance > 0 ? (actualRisk / input.balance) * 100 : 0,
     exposureOunces: recommendedLots * contractSize,
+    estimatedMargin,
+    marginBalancePercent: input.balance > 0 ? (estimatedMargin / input.balance) * 100 : 0,
     rewardRiskRatio,
     projectedProfit: rewardRiskRatio === null ? null : actualRisk * rewardRiskRatio,
     belowMinimum,

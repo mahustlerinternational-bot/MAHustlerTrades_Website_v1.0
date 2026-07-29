@@ -23,6 +23,7 @@ export const workspacePreferencesSchema = z.object({
     entry: shortText(20).default('4100'),
     stopLoss: shortText(20).default('4090'),
     takeProfit: shortText(20).default('4120'),
+    leverage: shortText(12).default('100'),
     contractSize: shortText(12).default('100'),
     minimumLot: shortText(12).default('0.01'),
     lotStep: shortText(12).default('0.01'),

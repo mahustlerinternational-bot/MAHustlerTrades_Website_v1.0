@@ -20,6 +20,7 @@ const risk = calculateXauPosition({
   entry: 4100,
   stopLoss: 4090,
   takeProfit: 4120,
+  leverage: 100,
 });
 assert.equal(risk.valid, true);
 assert.equal(risk.riskBudget, 100);
@@ -27,6 +28,8 @@ assert.equal(risk.recommendedLots, 0.1);
 assert.equal(risk.actualRisk, 100);
 assert.equal(risk.rewardRiskRatio, 2);
 assert.equal(risk.projectedProfit, 200);
+assert.equal(risk.estimatedMargin, 410);
+assert.equal(risk.marginBalancePercent.toFixed(2), '4.10');
 
 const belowMinimum = calculateXauPosition({
   balance: 100,
@@ -115,6 +118,7 @@ assert.equal(calendar[0].actual, '—');
 
 const workspace = parseEliteWorkspace(DEFAULT_ELITE_WORKSPACE);
 assert.equal(workspace.preferences.activeTab, 'dashboard');
+assert.equal(workspace.preferences.risk.leverage, '100');
 assert.equal(workspace.analysis.bias, 'neutral');
 assert.throws(() => parseEliteWorkspace({
   ...DEFAULT_ELITE_WORKSPACE,
