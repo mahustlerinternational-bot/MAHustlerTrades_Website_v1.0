@@ -4,6 +4,7 @@ import {
   formatSignalEntryZone,
   signalOutcomeLabel,
   signalDisplayLevels,
+  signalLevelProgress,
 } from '../src/lib/quant/signalLevels';
 import {inboundTelegramPost} from '../src/lib/integrations/telegramUpdate';
 
@@ -161,6 +162,18 @@ assert.equal(formatSignalEntryZone('XAUUSD',display.entryZone),'4,024.00 – 4,0
 assert.deepEqual(display.takeProfits,[4029,4034,4039]);
 assert.equal(signalOutcomeLabel({status:'active',metadata:{latest_outcome:'tp2_hit'}}),'TP2 HIT');
 assert.equal(signalOutcomeLabel({status:'closed_sl',metadata:{}}),'SL HIT');
+assert.deepEqual(
+  signalLevelProgress({status:'active',metadata:{latest_outcome:'tp2_hit',hit_targets:[1,2]}}),
+  {takeProfits:[true,true,false],stopLoss:false},
+);
+assert.deepEqual(
+  signalLevelProgress({status:'closed_tp',metadata:{latest_outcome:'tp3_hit',hit_targets:[1,2,3]}}),
+  {takeProfits:[true,true,true],stopLoss:false},
+);
+assert.deepEqual(
+  signalLevelProgress({status:'closed_sl',metadata:{latest_outcome:'sl_hit',hit_targets:[1]}}),
+  {takeProfits:[true,false,false],stopLoss:true},
+);
 
 const [tp1Update]=parseTelegramPost(`🎯 TP1 HIT — BREAKEVEN SECURED 🎯
 🧈 XAUUSD BUY 🧈
@@ -214,7 +227,7 @@ assert.equal(realTp2Update.normalized?.outcome,'tp2_hit');
 const [realTp3Update]=parseTelegramPost(`🎯 Congrats we just Hit!  TP3! - 150 Pips Smashed!`);
 assert.equal(realTp3Update.normalized?.outcome,'tp3_hit');
 
-const [realRiskUpdate]=parseTelegramPost(`XAUUSD SIGNAL
+const [realRiskUpdate]=parseTelegramPost(`XAUUSD SIGNAL:
 
 😰Sorry it Hit our Risk! Let's Focus on the Next Setup!💪`);
 assert.equal(realRiskUpdate.category,'trade_update');

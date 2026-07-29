@@ -12,6 +12,11 @@ export interface SignalDisplayLevels {
   stopLoss: number;
 }
 
+export interface SignalLevelProgress {
+  takeProfits: [boolean, boolean, boolean];
+  stopLoss: boolean;
+}
+
 const OUTCOME_LABELS:Record<string,string>={
   tp1_hit:'TP1 HIT',
   tp2_hit:'TP2 HIT',
@@ -80,6 +85,46 @@ export function signalDisplayLevels(
     entryZone: signalEntryZone(signal),
     takeProfits: signalTakeProfits(signal),
     stopLoss: Number(signal.sl_price),
+  };
+}
+
+export function signalLevelProgress(
+  signal: Pick<QuantSignal, 'status' | 'metadata'>,
+): SignalLevelProgress {
+  const recordedTargets = Array.isArray(signal.metadata?.hit_targets)
+    ? signal.metadata.hit_targets
+        .map(Number)
+        .filter(target => Number.isInteger(target) && target >= 1 && target <= 3)
+    : [];
+  const outcomeEvents = Array.isArray(signal.metadata?.outcome_events)
+    ? signal.metadata.outcome_events.filter(
+        (event): event is Record<string, unknown> =>
+          Boolean(event) && typeof event === 'object',
+      )
+    : [];
+  const outcomes = [
+    String(signal.metadata?.latest_outcome ?? ''),
+    ...outcomeEvents.map(event => String(event.outcome ?? '')),
+  ];
+  for (const outcome of outcomes) {
+    const match = outcome.match(/^tp([123])_hit$/);
+    if (match) recordedTargets.push(Number(match[1]));
+  }
+
+  // The connected EA publishes one sequential setup at a time. Reaching a
+  // later target confirms that all earlier targets in that setup were crossed.
+  let highestTarget = recordedTargets.length ? Math.max(...recordedTargets) : 0;
+  if (signal.status === 'closed_tp' && highestTarget === 0) highestTarget = 1;
+
+  return {
+    takeProfits: [
+      highestTarget >= 1,
+      highestTarget >= 2,
+      highestTarget >= 3,
+    ],
+    stopLoss:
+      signal.status === 'closed_sl' ||
+      outcomes.includes('sl_hit'),
   };
 }
 

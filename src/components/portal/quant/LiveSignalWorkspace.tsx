@@ -1,6 +1,6 @@
 'use client';
 
-import {BellRing, Volume2, VolumeX, Wifi, WifiOff} from 'lucide-react';
+import {BellRing, CheckCircle2, Volume2, VolumeX, Wifi, WifiOff} from 'lucide-react';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {toast} from 'sonner';
 
@@ -11,6 +11,7 @@ import {
   formatSignalPrice,
   signalDisplayLevels,
   signalEntryZone,
+  signalLevelProgress,
   signalOutcomeLabel,
 } from '@/lib/quant/signalLevels';
 import {authFetch} from '@/lib/utils/authFetch';
@@ -239,8 +240,18 @@ export default function LiveSignalWorkspace({
 
   const activeSignal =
     signals.find(signal => signal.status === 'active') ?? null;
-  const activeLevels = activeSignal ? signalDisplayLevels(activeSignal) : null;
-  const activeOutcome = activeSignal ? signalOutcomeLabel(activeSignal) : null;
+  const latestOutcomeSignal =
+    signals.find(signal =>
+      signal.status !== 'active' &&
+      signal.status !== 'cancelled' &&
+      Boolean(signal.metadata?.latest_outcome),
+    ) ?? null;
+  const displayedSignal = activeSignal ?? latestOutcomeSignal;
+  const displayedLevels = displayedSignal ? signalDisplayLevels(displayedSignal) : null;
+  const displayedOutcome = displayedSignal ? signalOutcomeLabel(displayedSignal) : null;
+  const displayedProgress = displayedSignal ? signalLevelProgress(displayedSignal) : null;
+  const displayedIsActive = displayedSignal?.status === 'active';
+  const displayedStopped = displayedProgress?.stopLoss === true;
 
   return (
     <>
@@ -248,8 +259,14 @@ export default function LiveSignalWorkspace({
         <style>{`
           @keyframes signalNoticeIn{from{opacity:0;transform:translateY(-8px) scale(.99)}to{opacity:1;transform:none}}
           @keyframes signalHalo{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,0)}50%{box-shadow:0 0 35px 2px rgba(212,175,55,.16)}}
+          @keyframes targetLevelGlow{0%,100%{box-shadow:0 0 10px rgba(0,208,132,.16),inset 0 0 12px rgba(0,208,132,.05)}50%{box-shadow:0 0 28px rgba(0,208,132,.48),inset 0 0 24px rgba(0,208,132,.12)}}
+          @keyframes stopLevelGlow{0%,100%{box-shadow:0 0 10px rgba(255,71,87,.2),inset 0 0 12px rgba(255,71,87,.06)}50%{box-shadow:0 0 30px rgba(255,71,87,.55),inset 0 0 26px rgba(255,71,87,.14)}}
+          .signal-level-hit-target{background:linear-gradient(135deg,rgba(0,208,132,.16),rgba(0,208,132,.055))!important;outline:1px solid rgba(52,211,153,.38);animation:targetLevelGlow 1.8s ease-in-out infinite}
+          .signal-level-hit-stop{background:linear-gradient(135deg,rgba(255,71,87,.18),rgba(255,71,87,.06))!important;outline:1px solid rgba(255,71,87,.42);animation:stopLevelGlow 1.55s ease-in-out infinite}
+          .signal-level-hit-badge{display:inline-flex;align-items:center;gap:4px;font-size:.47rem;font-weight:800;letter-spacing:1px}
           @media(max-width:1050px){.live-signal-levels{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
           @media(max-width:640px){.live-signal-levels{grid-template-columns:repeat(2,minmax(0,1fr))!important}.live-signal-controls{width:100%;justify-content:flex-start!important}.live-signal-entry-zone{grid-column:1/-1}}
+          @media(prefers-reduced-motion:reduce){.signal-level-hit-target,.signal-level-hit-stop{animation:none}}
         `}</style>
         {notice && (
           <div style={noticeBar}>
@@ -260,11 +277,11 @@ export default function LiveSignalWorkspace({
         )}
         <header style={cardHeader}>
           <div style={{display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap'}}>
-            <span style={{width: 8, height: 8, borderRadius: '50%', background: activeSignal ? '#00D084' : '#555', animation: activeSignal ? 'pulse 1.5s infinite' : 'none'}} />
-            <p style={title}>{activeSignal ? 'Live Signal Active' : 'Live Signal Scanner'}</p>
-            {activeSignal && <strong style={{fontFamily: 'Cinzel,serif', fontSize: '.92rem'}}>{activeSignal.instrument}</strong>}
-            {activeSignal && <span style={{...sideBadge, color: activeSignal.signal_type === 'long' ? '#00D084' : '#FF4757'}}>{activeSignal.signal_type === 'long' ? 'BUY' : 'SELL'}</span>}
-            {activeSignal && activeOutcome !== 'AWAITING' && <span style={{...sideBadge, color: '#D4AF37'}}>{activeOutcome}</span>}
+            <span style={{width: 8, height: 8, borderRadius: '50%', background: displayedIsActive ? '#00D084' : displayedStopped ? '#FF4757' : displayedSignal ? '#D4AF37' : '#555', animation: displayedIsActive ? 'pulse 1.5s infinite' : 'none'}} />
+            <p style={title}>{displayedIsActive ? 'Live Signal Active' : displayedSignal ? 'Latest Signal Outcome' : 'Live Signal Scanner'}</p>
+            {displayedSignal && <strong style={{fontFamily: 'Cinzel,serif', fontSize: '.92rem'}}>{displayedSignal.instrument}</strong>}
+            {displayedSignal && <span style={{...sideBadge, color: displayedSignal.signal_type === 'long' ? '#00D084' : '#FF4757'}}>{displayedSignal.signal_type === 'long' ? 'BUY' : 'SELL'}</span>}
+            {displayedSignal && displayedOutcome !== 'AWAITING' && <span style={{...sideBadge, color: displayedStopped ? '#FF4757' : '#D4AF37'}}>{displayedOutcome}</span>}
           </div>
           <div className="live-signal-controls" style={controls}>
             <span style={{...syncBadge, color: connected ? '#34D399' : '#F59E0B'}}>
@@ -278,26 +295,39 @@ export default function LiveSignalWorkspace({
           </div>
         </header>
 
-        {activeSignal && activeLevels ? (
+        {displayedSignal && displayedLevels && displayedProgress ? (
           <div style={{padding: '16px 18px 18px'}}>
             <div className="live-signal-levels" style={levels}>
               {[
-                {label: 'ENTRY ZONE', value: formatSignalEntryZone(activeSignal.instrument, activeLevels.entryZone), color: '#FFD700', background: 'rgba(212,175,55,.08)', className: 'live-signal-entry-zone'},
-                {label: 'TP1', value: formatSignalPrice(activeSignal.instrument, activeLevels.takeProfits[0]), color: '#00D084', background: 'rgba(0,208,132,.06)', className: ''},
-                {label: 'TP2', value: formatSignalPrice(activeSignal.instrument, activeLevels.takeProfits[1]), color: '#20C997', background: 'rgba(32,201,151,.055)', className: ''},
-                {label: 'TP3', value: formatSignalPrice(activeSignal.instrument, activeLevels.takeProfits[2]), color: '#38BDF8', background: 'rgba(56,189,248,.055)', className: ''},
-                {label: 'SL', value: formatSignalPrice(activeSignal.instrument, activeLevels.stopLoss), color: '#FF4757', background: 'rgba(255,71,87,.06)', className: ''},
+                {label: 'ENTRY ZONE', value: formatSignalEntryZone(displayedSignal.instrument, displayedLevels.entryZone), color: '#FFD700', background: 'rgba(212,175,55,.08)', className: 'live-signal-entry-zone', hit: false, hitType: ''},
+                {label: 'TP1', value: formatSignalPrice(displayedSignal.instrument, displayedLevels.takeProfits[0]), color: '#00D084', background: 'rgba(0,208,132,.06)', className: '', hit: displayedProgress.takeProfits[0], hitType: 'target'},
+                {label: 'TP2', value: formatSignalPrice(displayedSignal.instrument, displayedLevels.takeProfits[1]), color: '#20C997', background: 'rgba(32,201,151,.055)', className: '', hit: displayedProgress.takeProfits[1], hitType: 'target'},
+                {label: 'TP3', value: formatSignalPrice(displayedSignal.instrument, displayedLevels.takeProfits[2]), color: '#38BDF8', background: 'rgba(56,189,248,.055)', className: '', hit: displayedProgress.takeProfits[2], hitType: 'target'},
+                {label: 'SL', value: formatSignalPrice(displayedSignal.instrument, displayedLevels.stopLoss), color: '#FF4757', background: 'rgba(255,71,87,.06)', className: '', hit: displayedProgress.stopLoss, hitType: 'stop'},
               ].map(level => (
-                <div key={level.label} className={level.className} style={{...levelCard, background: level.background, borderLeftColor: level.color}}>
-                  <span style={{color: level.color}}>{level.label}</span>
+                <div
+                  key={level.label}
+                  className={`${level.className} ${level.hit ? level.hitType === 'stop' ? 'signal-level-hit-stop' : 'signal-level-hit-target' : ''}`}
+                  style={{...levelCard, background: level.background, borderLeftColor: level.color}}
+                  aria-label={`${level.label} ${level.value}${level.hit ? ', hit' : ''}`}
+                >
+                  <span style={{color: level.color, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', width: '100%'}}>
+                    {level.label}
+                    {level.hit && (
+                      <span className="signal-level-hit-badge" style={{color: level.hitType === 'stop' ? '#FF6874' : '#34D399'}}>
+                        <CheckCircle2 size={13} strokeWidth={2.5} /> HIT
+                      </span>
+                    )}
+                  </span>
                   <strong style={{color: level.color}}>{level.value}</strong>
                 </div>
               ))}
             </div>
             <div style={meta}>
-              <span>Released {new Date(activeSignal.broadcasted_at).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit'})}</span>
-              <span>{activeSignal.rr_ratio == null ? 'R:R —' : `R:R ${Number(activeSignal.rr_ratio).toFixed(2)}`}</span>
-              <span>{activeSignal.risk_pct == null ? 'Risk —' : `Risk ${Number(activeSignal.risk_pct).toFixed(2)}%`}</span>
+              <span>Released {new Date(displayedSignal.broadcasted_at).toLocaleString('en-GB', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit'})}</span>
+              <span>{displayedSignal.rr_ratio == null ? 'R:R —' : `R:R ${Number(displayedSignal.rr_ratio).toFixed(2)}`}</span>
+              <span>{displayedSignal.risk_pct == null ? 'Risk —' : `Risk ${Number(displayedSignal.risk_pct).toFixed(2)}%`}</span>
+              {!displayedIsActive && displayedOutcome && <span style={{color: displayedStopped ? '#FF6874' : '#34D399'}}>Final outcome: {displayedOutcome}</span>}
             </div>
           </div>
         ) : (
